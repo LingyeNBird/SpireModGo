@@ -65,17 +65,17 @@ func (m *appModel) offerPostInstallSaveCopy() {
 	moddedNewer := newestNormalIndex >= 0 && newestModdedIndex >= 0 && moddedSlots[newestModdedIndex].LastModified.After(normalSlots[newestNormalIndex].LastModified)
 
 	var summary strings.Builder
-	summary.WriteString("Vanilla saves:\n")
+	summary.WriteString(t("Vanilla saves:\n"))
 	for _, slot := range normalSlots {
 		summary.WriteString(fmt.Sprintf("- %s: %s\n", formatSaveRef(manager.SaveTypeNormal, slot.Slot), slotSummaryText(slot)))
 	}
-	summary.WriteString("\nModded saves:\n")
+	summary.WriteString("\n" + t("Modded saves:\n"))
 	for _, slot := range moddedSlots {
 		summary.WriteString(fmt.Sprintf("- %s: %s\n", formatSaveRef(manager.SaveTypeModded, slot.Slot), slotSummaryText(slot)))
 	}
-	summary.WriteString(fmt.Sprintf("\nSuggested copy: %s -> %s", formatSaveRef(manager.SaveTypeNormal, suggestedSource), formatSaveRef(manager.SaveTypeModded, suggestedTarget)))
+	summary.WriteString("\n" + t("Suggested copy: %s -> %s", formatSaveRef(manager.SaveTypeNormal, suggestedSource), formatSaveRef(manager.SaveTypeModded, suggestedTarget)))
 	if moddedNewer {
-		summary.WriteString("\n\nWarning: your newest modded save is newer than your newest vanilla save. Copying now can overwrite newer modded progress.")
+		summary.WriteString("\n\n" + t("Warning: your newest modded save is newer than your newest vanilla save. Copying now can overwrite newer modded progress."))
 	}
 
 	m.showConfirm("Copy Vanilla Save To Modded?", summary.String(), func(app *appModel) {
@@ -99,11 +99,11 @@ func (m *appModel) offerPostInstallSaveCopy() {
 
 func slotSummaryText(slot manager.SaveSlotInfo) string {
 	if !slot.HasData {
-		return "empty"
+		return t("empty")
 	}
 	text := formatTimestamp(slot.LastModified)
 	if slot.HasCurrentRun {
-		text += " | current run"
+		text += " | " + t("current run")
 	}
 	return text
 }

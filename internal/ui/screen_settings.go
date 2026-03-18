@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -18,7 +17,7 @@ type settingsScreen struct {
 
 func (s *settingsScreen) init() {
 	input := textinput.New()
-	input.Placeholder = "Enter SlayTheSpire2 directory"
+	input.Placeholder = t("Enter SlayTheSpire2 directory")
 	input.Width = 48
 	s.input = input
 }
@@ -27,6 +26,7 @@ func (s *settingsScreen) refresh(app *appModel) {
 	if !s.editing {
 		s.input.SetValue(app.state.GameDir())
 	}
+	s.input.Placeholder = t("Enter SlayTheSpire2 directory")
 	steamIDs, steamErr := app.state.ListSteamIDs()
 	backupCount := 0
 	if steamErr == nil && app.state.SelectedSteamID() != "" {
@@ -39,28 +39,28 @@ func (s *settingsScreen) refresh(app *appModel) {
 		bakCount = countBakFiles(filepath.Join(dir, "mods"))
 	}
 	lines := []string{
-		"Current Paths",
+		t("Current Paths"),
 		"",
-		fmt.Sprintf("Config file: %s", app.manager.ConfigPath),
-		fmt.Sprintf("Bundled Mods: %s", app.manager.ModsSource),
-		fmt.Sprintf("Save root: %s", app.manager.SaveRoot),
+		t("Config file: %s", app.manager.ConfigPath),
+		t("Bundled Mods: %s", app.manager.ModsSource),
+		t("Save root: %s", app.manager.SaveRoot),
 	}
 	if app.state.GameDir() != "" {
-		lines = append(lines, fmt.Sprintf("Game dir: %s", app.state.GameDir()))
+		lines = append(lines, t("Game dir: %s", app.state.GameDir()))
 	} else {
-		lines = append(lines, "Game dir: (not configured)")
+		lines = append(lines, t("Game dir: (not configured)"))
 	}
 	lines = append(lines, "")
 	if steamErr != nil {
-		lines = append(lines, fmt.Sprintf("Steam profiles: %s", steamErr.Error()))
+		lines = append(lines, t("Steam profiles: %s", app.localizeError(steamErr)))
 	} else {
-		lines = append(lines, fmt.Sprintf("Steam profiles: %d", len(steamIDs)))
+		lines = append(lines, t("Steam profiles: %d", len(steamIDs)))
 		if app.state.SelectedSteamID() != "" {
-			lines = append(lines, fmt.Sprintf("Active profile: %s", app.state.SelectedSteamID()))
-			lines = append(lines, fmt.Sprintf("Backups for active profile: %d", backupCount))
+			lines = append(lines, t("Active profile: %s", app.state.SelectedSteamID()))
+			lines = append(lines, t("Backups for active profile: %d", backupCount))
 		}
 	}
-	lines = append(lines, fmt.Sprintf("Detected .bak files in game mods: %d", bakCount))
+	lines = append(lines, t("Detected .bak files in game mods: %d", bakCount))
 	s.summary = strings.Join(lines, "\n")
 }
 
@@ -145,7 +145,7 @@ func (s *settingsScreen) runAction(app *appModel) {
 }
 
 func (s *settingsScreen) view(app *appModel, width, height int) string {
-	actions := []string{"Auto Detect", "Save Path", "Clear Config", "Cleanup .bak", "Refresh"}
+	actions := []string{t("Auto Detect"), t("Save Path"), t("Clear Config"), t("Cleanup .bak"), t("Refresh")}
 	if s.editing {
 		s.input.Prompt = "> "
 	} else {
@@ -155,22 +155,22 @@ func (s *settingsScreen) view(app *appModel, width, height int) string {
 	actionText := renderList(actions, s.actionCursor, app.focus == focusContent && !s.editing)
 	leftWidth, rightWidth := splitContentWidths(width, 28, 24)
 	leftBody := strings.Join([]string{
-		"Game Dir",
+		t("Game Dir"),
 		s.input.View(),
 		"",
-		"Actions",
+		t("Actions"),
 		actionText,
 		"",
-		mutedStyle.Render("Press e to edit the path input."),
+		mutedStyle.Render(t("Press e to edit the path input.")),
 	}, "\n")
-	left := renderFlatColumn("Actions", leftBody, leftWidth, height)
-	right := renderFlatColumn("Current Paths and State", s.summary, rightWidth, height)
+	left := renderFlatColumn(t("Actions"), leftBody, leftWidth, height)
+	right := renderFlatColumn(t("Current Paths and State"), s.summary, rightWidth, height)
 	return joinFlatColumns(left, right, leftWidth, rightWidth)
 }
 
 func (s *settingsScreen) help() string {
 	if s.editing {
-		return "Settings: type path | enter finish edit | esc cancel edit"
+		return t("Settings: type path | enter finish edit | esc cancel edit")
 	}
-	return "Settings: up/down action | e edit path | enter run action"
+	return t("Settings: up/down action | e edit path | enter run action")
 }
