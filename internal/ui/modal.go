@@ -18,7 +18,7 @@ func renderModal(width, height int, modal modalState) string {
 	if !modal.confirm {
 		footer = "Enter close"
 	}
-	footer += " | Esc cancel"
+	footer = t(footer) + " | " + t("Esc cancel")
 	content := sectionTitleStyle.Render(modal.title) + "\n\n" + modal.body + "\n\n" + mutedStyle.Render(footer)
 	box := modalBoxStyle.Width(clampInt(width/2, 40, maxInt(40, width-6))).Render(content)
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)

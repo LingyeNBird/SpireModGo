@@ -21,9 +21,9 @@ func formatTimestamp(value time.Time) string {
 
 func formatSaveTypeName(saveType manager.SaveType) string {
 	if saveType == manager.SaveTypeNormal {
-		return "Vanilla"
+		return t("Vanilla")
 	}
-	return "Modded"
+	return t("Modded")
 }
 
 func formatSaveRef(saveType manager.SaveType, slot int) string {
@@ -42,9 +42,9 @@ func renderModListLabel(mod manager.ModPackage, selected bool) string {
 	status := ""
 	switch {
 	case mod.Updatable:
-		status = " (update available locally)"
+		status = t(" (update available locally)")
 	case mod.Installed:
-		status = " (installed)"
+		status = t(" (installed)")
 	}
 	return fmt.Sprintf("%s %s%s", checkbox, mod.Label, status)
 }
@@ -60,39 +60,39 @@ func renderInstalledModListLabel(mod manager.InstalledMod, selected bool) string
 func renderAvailableModDetail(mod manager.ModPackage) string {
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "%s\n\n", mod.Label)
-	fmt.Fprintf(&builder, "Install folder: %s\n", mod.InstallName)
-	fmt.Fprintf(&builder, "Source path: %s\n", mod.SourcePath)
+	fmt.Fprintf(&builder, t("Install folder: %s\n"), mod.InstallName)
+	fmt.Fprintf(&builder, t("Source path: %s\n"), mod.SourcePath)
 
-	status := "Not installed"
+	status := t("Not installed")
 	switch {
 	case mod.Updatable:
-		status = fmt.Sprintf("Installed v%s, package v%s", mod.InstalledVersion, manifestVersion(mod.Manifest))
+		status = t("Installed v%s, package v%s", mod.InstalledVersion, manifestVersion(mod.Manifest))
 	case mod.Installed:
 		if mod.InstalledVersion != "" {
-			status = fmt.Sprintf("Installed v%s", mod.InstalledVersion)
+			status = t("Installed v%s", mod.InstalledVersion)
 		} else {
-			status = "Installed"
+			status = t("Installed")
 		}
 	}
-	fmt.Fprintf(&builder, "Status: %s\n", status)
+	fmt.Fprintf(&builder, t("Status: %s\n"), status)
 
 	if mod.Manifest == nil {
-		builder.WriteString("\nNo mod_manifest.json detected. The install folder name is inferred from files.\n")
+		builder.WriteString("\n" + t("No mod_manifest.json detected. The install folder name is inferred from files.\n"))
 		return builder.String()
 	}
 
-	builder.WriteString("\nManifest\n")
+	builder.WriteString("\n" + t("Manifest") + "\n")
 	if mod.Manifest.Name != "" {
-		fmt.Fprintf(&builder, "Name: %s\n", mod.Manifest.Name)
+		fmt.Fprintf(&builder, t("Name: %s\n"), mod.Manifest.Name)
 	}
 	if mod.Manifest.Version != "" {
-		fmt.Fprintf(&builder, "Version: %s\n", mod.Manifest.Version)
+		fmt.Fprintf(&builder, t("Version: %s\n"), mod.Manifest.Version)
 	}
 	if mod.Manifest.Author != "" {
-		fmt.Fprintf(&builder, "Author: %s\n", mod.Manifest.Author)
+		fmt.Fprintf(&builder, t("Author: %s\n"), mod.Manifest.Author)
 	}
 	if mod.Manifest.PckName != "" {
-		fmt.Fprintf(&builder, "Package key: %s\n", mod.Manifest.PckName)
+		fmt.Fprintf(&builder, t("Package key: %s\n"), mod.Manifest.PckName)
 	}
 	return builder.String()
 }
@@ -100,28 +100,28 @@ func renderAvailableModDetail(mod manager.ModPackage) string {
 func renderInstalledModDetail(mod manager.InstalledMod) string {
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "%s\n\n", mod.Label)
-	fmt.Fprintf(&builder, "Install path: %s\n", mod.FullPath)
+	fmt.Fprintf(&builder, t("Install path: %s\n"), mod.FullPath)
 
 	if mod.Manifest != nil {
-		builder.WriteString("\nManifest\n")
+		builder.WriteString("\n" + t("Manifest") + "\n")
 		if mod.Manifest.Name != "" {
-			fmt.Fprintf(&builder, "Name: %s\n", mod.Manifest.Name)
+			fmt.Fprintf(&builder, t("Name: %s\n"), mod.Manifest.Name)
 		}
 		if mod.Manifest.Version != "" {
-			fmt.Fprintf(&builder, "Version: %s\n", mod.Manifest.Version)
+			fmt.Fprintf(&builder, t("Version: %s\n"), mod.Manifest.Version)
 		}
 		if mod.Manifest.Author != "" {
-			fmt.Fprintf(&builder, "Author: %s\n", mod.Manifest.Author)
+			fmt.Fprintf(&builder, t("Author: %s\n"), mod.Manifest.Author)
 		}
 	}
 
 	entries, err := os.ReadDir(mod.FullPath)
 	if err != nil {
-		fmt.Fprintf(&builder, "\nFailed to read files: %s\n", err.Error())
+		fmt.Fprintf(&builder, "\n"+t("Failed to read files: %s\n"), err.Error())
 		return builder.String()
 	}
 
-	builder.WriteString("\nFiles\n")
+	builder.WriteString("\n" + t("Files") + "\n")
 	count := 0
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -138,13 +138,13 @@ func renderInstalledModDetail(mod manager.InstalledMod) string {
 		count++
 	}
 	if count == 0 {
-		builder.WriteString("(no files found)\n")
+		builder.WriteString(t("(no files found)\n"))
 	}
 	return builder.String()
 }
 
 func renderBackupDetail(backup manager.BackupInfo) string {
-	return fmt.Sprintf("%s\n\nType: %s\nSlot: %d\nFiles: %d\nPath: %s\n",
+	return t("%s\n\nType: %s\nSlot: %d\nFiles: %d\nPath: %s\n",
 		backup.Name,
 		formatSaveTypeName(backup.Type),
 		backup.Slot,
@@ -155,11 +155,11 @@ func renderBackupDetail(backup manager.BackupInfo) string {
 
 func buildSlotStatus(info manager.SaveSlotInfo) string {
 	if !info.HasData {
-		return "(empty)"
+		return t("(empty)")
 	}
 	parts := []string{formatTimestamp(info.LastModified)}
 	if info.HasCurrentRun {
-		parts = append(parts, "current run")
+		parts = append(parts, t("current run"))
 	}
 	return strings.Join(parts, " | ")
 }
@@ -177,7 +177,7 @@ func humanSize(size int64) string {
 
 func manifestVersion(manifest *manager.ModManifest) string {
 	if manifest == nil || manifest.Version == "" {
-		return "unknown"
+		return t("unknown")
 	}
 	return manifest.Version
 }
@@ -268,7 +268,7 @@ func renderList(items []string, cursor int, focused bool) string {
 		lines = append(lines, style.Render(prefix+item))
 	}
 	if len(lines) == 0 {
-		return mutedStyle.Render("(empty)")
+		return mutedStyle.Render(t("(empty)"))
 	}
 	return strings.Join(lines, "\n")
 }

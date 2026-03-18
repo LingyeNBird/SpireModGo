@@ -59,6 +59,7 @@ func (a *App) Run() error {
 }
 
 func newAppModel(mgr *manager.Manager) *appModel {
+	_ = loadLocalizer(mgr.BaseDir)
 	m := &appModel{
 		manager: mgr,
 		state:   NewState(mgr),
@@ -107,7 +108,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *appModel) View() string {
 	if m.width == 0 || m.height == 0 {
-		return "Loading..."
+		return t("Loading...")
 	}
 	sidebarWidth, mainWidth, contentHeight, logHeight, helpHeight := m.layoutMetrics()
 	sidebar := sidebarStyle.Width(sidebarWidth).Height(m.height).Render(m.renderSidebar(maxInt(18, sidebarWidth-3), maxInt(6, m.height-2)))
@@ -117,8 +118,8 @@ func (m *appModel) View() string {
 	m.logs.Resize(maxInt(20, mainWidth-2), logBodyHeight)
 
 	content := renderFlatSection(screenName(m.current), m.renderCurrentScreen(maxInt(24, mainWidth-2), contentBodyHeight), mainWidth, contentHeight)
-	activity := renderFlatSection("Activity Log", m.logs.View(), mainWidth, logHeight)
-	help := renderFlatSection("Help", m.renderHelp(), mainWidth, helpHeight)
+	activity := renderFlatSection(t("Activity Log"), m.logs.View(), mainWidth, logHeight)
+	help := renderFlatSection(t("Help"), m.renderHelp(), mainWidth, helpHeight)
 	workspace := lipgloss.JoinVertical(lipgloss.Left, content, activity, help)
 	shell := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, workspace)
 
@@ -149,6 +150,11 @@ func (m *appModel) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return tea.Quit
+	case "ctrl+l":
+		locale := toggleLocale()
+		m.refreshAllLocalizedState()
+		m.logInfo("Language: %s", localeDisplayName(locale))
+		return nil
 	case "f5":
 		m.refreshCurrentScreen()
 		m.logInfo("Refreshed %s screen", screenName(m.current))
@@ -263,36 +269,38 @@ func (m *appModel) refreshCurrentScreen() {
 func (m *appModel) renderSidebar(width, height int) string {
 	gameDir := m.state.GameDir()
 	if gameDir == "" {
-		gameDir = "(not configured)"
+		gameDir = t("(not configured)")
 	}
 	steamID := m.state.SelectedSteamID()
 	if steamID == "" {
-		steamID = "(none)"
+		steamID = t("(none)")
 	}
 	items := []string{
-		"1. Main Menu",
-		"2. Install Mods",
-		"3. Uninstall Mods",
-		"4. Installed Mods",
-		"5. Save Management",
-		"6. Settings",
+		"1. " + t("Main Menu"),
+		"2. " + t("Install Mods"),
+		"3. " + t("Uninstall Mods"),
+		"4. " + t("Installed Mods"),
+		"5. " + t("Save Management"),
+		"6. " + t("Settings"),
 	}
 	lines := make([]string, 0, len(items)+14)
 	lines = append(lines,
-		titleStyle.Render("Slay the Spire 2"),
-		accentStyle.Render("Mod Manager"),
+		titleStyle.Render(t("Slay the Spire 2")),
+		accentStyle.Render(t("Mod Manager")),
 		"",
-		sectionTitleStyle.Render("Current Page"),
+		sectionTitleStyle.Render(t("Current Page")),
 		navActiveStyle.Render(screenName(m.current)),
 		"",
-		sectionTitleStyle.Render("Context"),
-		metaLabelStyle.Render("Game Dir"),
+		sectionTitleStyle.Render(t("Context")),
+		metaLabelStyle.Render(t("Game Dir")),
 		okStyle.Render(gameDir),
 		"",
-		metaLabelStyle.Render("Steam ID"),
+		metaLabelStyle.Render(t("Steam ID")),
 		okStyle.Render(steamID),
 		"",
-		sectionTitleStyle.Render("Pages"),
+		metaLabelStyle.Render(t("Language: %s", localeDisplayName(currentLocale()))),
+		"",
+		sectionTitleStyle.Render(t("Pages")),
 	)
 	for idx, item := range items {
 		prefix := "  "
@@ -308,11 +316,12 @@ func (m *appModel) renderSidebar(width, height int) string {
 	}
 	lines = append(lines,
 		"",
-		sectionTitleStyle.Render("Keys"),
-		mutedStyle.Render("Up/Down select page"),
-		mutedStyle.Render("Enter open page"),
-		mutedStyle.Render("Tab switch focus"),
-		mutedStyle.Render("F5 refresh | q quit"),
+		sectionTitleStyle.Render(t("Keys")),
+		mutedStyle.Render(t("Up/Down select page")),
+		mutedStyle.Render(t("Enter open page")),
+		mutedStyle.Render(t("Tab switch focus")),
+		mutedStyle.Render(t("Ctrl+L toggle language")),
+		mutedStyle.Render(t("F5 refresh | q quit")),
 	)
 	content := strings.Join(lines, "\n")
 	return lipgloss.NewStyle().Width(width).Height(height).Render(content)
@@ -336,7 +345,7 @@ func (m *appModel) renderCurrentScreen(width, height int) string {
 }
 
 func (m *appModel) renderHelp() string {
-	common := "Global: sidebar navigation | Tab focus content | Shift+Tab/Esc return to sidebar | F5 refresh | q quit"
+	common := t("Global: sidebar navigation | Tab focus content | Shift+Tab/Esc return to sidebar | Ctrl+L toggle language | F5 refresh | q quit")
 	screenHelp := ""
 	switch m.current {
 	case screenInstall:
@@ -389,11 +398,11 @@ func (m *appModel) layoutMetrics() (int, int, int, int, int) {
 }
 
 func (m *appModel) showInfo(title, body string) {
-	m.modal = modalState{open: true, title: title, body: body}
+	m.modal = modalState{open: true, title: t(title), body: t(body)}
 }
 
 func (m *appModel) showConfirm(title, body string, onConfirm func(*appModel)) {
-	m.modal = modalState{open: true, title: title, body: body, confirm: true, onConfirm: onConfirm}
+	m.modal = modalState{open: true, title: t(title), body: t(body), confirm: true, onConfirm: onConfirm}
 }
 
 func (m *appModel) handleModalKey(msg tea.KeyMsg) tea.Cmd {
@@ -415,8 +424,10 @@ func (m *appModel) showError(action string, err error) {
 	if err == nil {
 		return
 	}
-	m.logError("%s: %v", action, err)
-	m.showInfo("Error", fmt.Sprintf("%s\n\n%v", action, err))
+	localizedAction := t(action)
+	localizedErr := m.localizeError(err)
+	m.logError("%s: %s", localizedAction, localizedErr)
+	m.showInfo(t("Error"), fmt.Sprintf("%s\n\n%s", localizedAction, localizedErr))
 }
 
 func (m *appModel) logInfo(format string, args ...any) {
@@ -438,18 +449,47 @@ func (m *appModel) logError(format string, args ...any) {
 func screenName(screen string) string {
 	switch screen {
 	case screenInstall:
-		return "Install Mods"
+		return t("Install Mods")
 	case screenUninstall:
-		return "Uninstall Mods"
+		return t("Uninstall Mods")
 	case screenInstalled:
-		return "Installed Mods"
+		return t("Installed Mods")
 	case screenSaves:
-		return "Save Management"
+		return t("Save Management")
 	case screenSettings:
-		return "Settings"
+		return t("Settings")
 	default:
-		return "Main Menu"
+		return t("Main Menu")
 	}
+}
+
+func (m *appModel) refreshAllLocalizedState() {
+	m.home.refresh(m)
+	m.install.refresh(m)
+	m.uninstall.refresh(m)
+	m.installed.refresh(m)
+	m.saves.refresh(m)
+	m.settings.refresh(m)
+	m.logs.sync()
+}
+
+func (m *appModel) localizeError(err error) string {
+	if err == nil {
+		return ""
+	}
+	text := err.Error()
+	const steamPrefix = "no Steam save directories found in "
+	if strings.HasPrefix(text, steamPrefix) {
+		return t("no Steam save directories found in %s", strings.TrimPrefix(text, steamPrefix))
+	}
+	return t(text)
+}
+
+func localeDisplayName(locale string) string {
+	if locale == localeZhCN {
+		return t("Chinese")
+	}
+	return t("English")
 }
 
 func screenByNavIndex(index int) string {

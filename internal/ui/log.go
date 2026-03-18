@@ -11,7 +11,8 @@ import (
 type logEntry struct {
 	stamp string
 	level string
-	text  string
+	key   string
+	args  []any
 }
 
 type logModel struct {
@@ -27,8 +28,8 @@ func newLogModel() logModel {
 	}
 }
 
-func (l *logModel) Add(level, text string) {
-	l.entries = append(l.entries, logEntry{stamp: time.Now().Format("15:04:05"), level: level, text: text})
+func (l *logModel) Add(level, key string, args ...any) {
+	l.entries = append(l.entries, logEntry{stamp: time.Now().Format("15:04:05"), level: level, key: key, args: args})
 	if len(l.entries) > l.maxEntries {
 		l.entries = l.entries[len(l.entries)-l.maxEntries:]
 	}
@@ -53,15 +54,15 @@ func (l *logModel) sync() {
 		label := entry.level
 		switch entry.level {
 		case "ok":
-			label = okStyle.Render("OK")
+			label = okStyle.Render(t("OK"))
 		case "warn":
-			label = warnStyle.Render("WARN")
+			label = warnStyle.Render(t("WARN"))
 		case "error":
-			label = errorStyle.Render("ERR")
+			label = errorStyle.Render(t("ERR"))
 		default:
-			label = mutedStyle.Render("INFO")
+			label = mutedStyle.Render(t("INFO"))
 		}
-		lines = append(lines, fmt.Sprintf("%s  [%s] %s", mutedStyle.Render(entry.stamp), label, entry.text))
+		lines = append(lines, fmt.Sprintf("%s  [%s] %s", mutedStyle.Render(entry.stamp), label, t(entry.key, entry.args...)))
 	}
 	l.viewport.SetContent(strings.Join(lines, "\n"))
 }
