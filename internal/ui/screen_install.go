@@ -18,7 +18,7 @@ func (s *installScreen) refresh(app *appModel) {
 	s.mods = mods
 	s.err = ""
 	if err != nil {
-		s.err = err.Error()
+		s.err = app.localizeError(err)
 	}
 	if s.selected == nil {
 		s.selected = map[string]bool{}
@@ -89,21 +89,21 @@ func (s *installScreen) install(app *appModel, items []manager.ModPackage) {
 
 func (s *installScreen) view(app *appModel, width, height int) string {
 	if s.err != "" {
-		return renderFlatColumn("Status", "Failed to load available packages:\n\n"+s.err, width, height)
+		return renderFlatColumn(t("Status"), t("Failed to load available packages:\n\n%s", s.err), width, height)
 	}
 	if len(s.mods) == 0 {
-		return renderFlatColumn("Status", "No packages were found in the bundled Mods directory.", width, height)
+		return renderFlatColumn(t("Status"), t("No packages were found in the bundled Mods directory."), width, height)
 	}
 	items := make([]string, 0, len(s.mods))
 	for _, mod := range s.mods {
 		items = append(items, renderModListLabel(mod, s.selected[mod.InstallName]))
 	}
 	leftWidth, rightWidth := splitContentWidths(width, 28, 24)
-	left := renderFlatColumn("Available Packages", renderList(items, s.cursor, app.focus == focusContent), leftWidth, height)
-	right := renderFlatColumn("Package Details", renderAvailableModDetail(s.mods[s.cursor]), rightWidth, height)
+	left := renderFlatColumn(t("Available Packages"), renderList(items, s.cursor, app.focus == focusContent), leftWidth, height)
+	right := renderFlatColumn(t("Package Details"), renderAvailableModDetail(s.mods[s.cursor]), rightWidth, height)
 	return joinFlatColumns(left, right, leftWidth, rightWidth)
 }
 
 func (s *installScreen) help() string {
-	return "Install: up/down move | space toggle | i install selected | a install all"
+	return t("Install: up/down move | space toggle | i install selected | a install all")
 }

@@ -13,12 +13,12 @@ type homeScreen struct {
 func (s *homeScreen) refresh(app *appModel) {
 	availableMods, availableErr := app.state.ListAvailableMods()
 	installedCount := 0
-	installedState := "Unavailable until the game directory is configured."
+	installedState := t("Game directory is not configured yet. Open Settings before install or uninstall actions.")
 	if installedMods, err := app.state.ListInstalledMods(); err == nil {
 		installedCount = len(installedMods)
 		installedState = fmt.Sprintf("%d installed mod folder(s).", installedCount)
 	} else {
-		installedState = err.Error()
+		installedState = app.localizeError(err)
 	}
 
 	steamIDs, steamErr := app.state.ListSteamIDs()
@@ -31,54 +31,54 @@ func (s *homeScreen) refresh(app *appModel) {
 
 	var summaryText strings.Builder
 	if app.state.GameDir() == "" {
-		summaryText.WriteString("Game directory: (not configured)\n")
+		summaryText.WriteString(t("Game directory: (not configured)\n"))
 	} else {
-		summaryText.WriteString(fmt.Sprintf("Game directory: %s\n", app.state.GameDir()))
+		summaryText.WriteString(t("Game directory: %s\n", app.state.GameDir()))
 	}
-	summaryText.WriteString(fmt.Sprintf("Mod source: %s\n", app.manager.ModsSource))
-	summaryText.WriteString(fmt.Sprintf("Save root: %s\n\n", app.manager.SaveRoot))
+	summaryText.WriteString(t("Mod source: %s\n", app.manager.ModsSource))
+	summaryText.WriteString(t("Save root: %s\n\n", app.manager.SaveRoot))
 
 	if availableErr != nil {
-		summaryText.WriteString(fmt.Sprintf("Available packages: %s\n", availableErr.Error()))
+		summaryText.WriteString(t("Available packages: %s\n", app.localizeError(availableErr)))
 	} else {
-		summaryText.WriteString(fmt.Sprintf("Available packages: %d\n", len(availableMods)))
+		summaryText.WriteString(t("Available packages: %d\n", len(availableMods)))
 	}
-	summaryText.WriteString(fmt.Sprintf("Installed mods: %s\n", installedState))
+	summaryText.WriteString(t("Installed mods: %s\n", installedState))
 
 	if steamErr != nil {
-		summaryText.WriteString(fmt.Sprintf("Steam profiles: %s\n", steamErr.Error()))
+		summaryText.WriteString(t("Steam profiles: %s\n", app.localizeError(steamErr)))
 	} else {
-		summaryText.WriteString(fmt.Sprintf("Steam profiles: %d\n", len(steamIDs)))
+		summaryText.WriteString(t("Steam profiles: %d\n", len(steamIDs)))
 		if app.state.SelectedSteamID() != "" {
-			summaryText.WriteString(fmt.Sprintf("Active Steam profile: %s\n", app.state.SelectedSteamID()))
-			summaryText.WriteString(fmt.Sprintf("Available backups: %d\n", backupCount))
+			summaryText.WriteString(t("Active Steam profile: %s\n", app.state.SelectedSteamID()))
+			summaryText.WriteString(t("Available backups: %d\n", backupCount))
 		}
 	}
 	s.summary = summaryText.String()
 	s.notes = strings.Join([]string{
-		"What This Build Includes",
+		t("What This Build Includes"),
 		"",
-		"- Install mods from the bundled Mods packages.",
-		"- Uninstall selected mod folders or wipe the whole mods directory.",
-		"- Inspect installed mod manifests and copied files.",
-		"- Copy saves between vanilla and modded slots, plus backup and restore.",
-		"- Manage local settings, game-path detection, and .bak cleanup.",
+		t("- Install mods from the bundled Mods packages."),
+		t("- Uninstall selected mod folders or wipe the whole mods directory."),
+		t("- Inspect installed mod manifests and copied files."),
+		t("- Copy saves between vanilla and modded slots, plus backup and restore."),
+		t("- Manage local settings, game-path detection, and .bak cleanup."),
 		"",
-		"Notes",
+		t("Notes"),
 		"",
-		"- Destructive actions always ask for confirmation first.",
-		"- Operation results stay in the bottom status/log pane.",
-		"- Online update and self-update features are intentionally omitted.",
+		t("- Destructive actions always ask for confirmation first."),
+		t("- Operation results stay in the bottom status/log pane."),
+		t("- Online update and self-update features are intentionally omitted."),
 	}, "\n")
 }
 
 func (s *homeScreen) view(app *appModel, width, height int) string {
 	leftWidth, rightWidth := splitContentWidths(width, 28, 24)
-	left := renderFlatColumn("Overview", s.summary, leftWidth, height)
-	right := renderFlatColumn("Capabilities", s.notes, rightWidth, height)
+	left := renderFlatColumn(t("Overview"), s.summary, leftWidth, height)
+	right := renderFlatColumn(t("Capabilities"), s.notes, rightWidth, height)
 	return joinFlatColumns(left, right, leftWidth, rightWidth)
 }
 
 func (s *homeScreen) help() string {
-	return "Home: use the sidebar to switch pages"
+	return t("Home: use the sidebar to switch pages")
 }
