@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"slaymodgo/internal/manager"
@@ -57,6 +59,37 @@ func (s *installScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (s *installScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, height int) tea.Cmd {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return nil
+	}
+	leftWidth, _ := splitContentWidths(width, 28, 24)
+	layout := newSplitBodyLayout(width, height, leftWidth)
+	if layout.leftBody.contains(x, y) {
+		localY := y - layout.leftBody.y
+		switch {
+		case localY == 0:
+			chosen := make([]manager.ModPackage, 0)
+			for _, mod := range s.mods {
+				if s.selected[mod.InstallName] {
+					chosen = append(chosen, mod)
+				}
+			}
+			s.install(app, chosen)
+		case localY == 1:
+			s.install(app, s.mods)
+		case localY >= 3:
+			idx := localY - 3
+			if idx >= 0 && idx < len(s.mods) {
+				s.cursor = idx
+				key := s.mods[idx].InstallName
+				s.selected[key] = !s.selected[key]
+			}
+		}
+	}
+	return nil
+}
+
 func (s *installScreen) install(app *appModel, items []manager.ModPackage) {
 	if len(items) == 0 {
 		app.showInfo("Nothing Selected", "Select one or more packages before installing.")
@@ -89,21 +122,25 @@ func (s *installScreen) install(app *appModel, items []manager.ModPackage) {
 
 func (s *installScreen) view(app *appModel, width, height int) string {
 	if s.err != "" {
-		return renderFlatColumn(t("Status"), t("Failed to load available packages:\n\n%s", s.err), width, height)
+		return t("Failed to load available packages:\n\n%s", s.err)
 	}
 	if len(s.mods) == 0 {
-		return renderFlatColumn(t("Status"), t("No packages were found in the bundled Mods directory."), width, height)
+		return t("No packages were found in the bundled Mods directory.")
 	}
 	items := make([]string, 0, len(s.mods))
 	for _, mod := range s.mods {
 		items = append(items, renderModListLabel(mod, s.selected[mod.InstallName]))
 	}
-	leftWidth, rightWidth := splitContentWidths(width, 28, 24)
-	left := renderFlatColumn(t("Available Packages"), renderList(items, s.cursor, app.focus == focusContent), leftWidth, height)
-	right := renderFlatColumn(t("Package Details"), renderAvailableModDetail(s.mods[s.cursor]), rightWidth, height)
-	return joinFlatColumns(left, right, leftWidth, rightWidth)
+	leftWidth, _ := splitContentWidths(width, 28, 24)
+	leftBody := strings.Join([]string{
+		renderActionLine(t("Install Selected"), false),
+		renderActionLine(t("Install All"), false),
+		"",
+		renderList(items, s.cursor, app.focus == focusContent),
+	}, "\n")
+	return renderSplitBody(t("Packages"), leftBody, t("Package Details"), renderAvailableModDetail(s.mods[s.cursor]), width, height, leftWidth)
 }
 
 func (s *installScreen) help() string {
-	return t("Install: up/down move | space toggle | i install selected | a install all")
+	return t("Install: click package rows or action buttons | up/down move | space toggle | i install selected | a install all")
 }

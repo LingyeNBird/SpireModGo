@@ -53,6 +53,31 @@ func (s *uninstallScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (s *uninstallScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, height int) tea.Cmd {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return nil
+	}
+	leftWidth, _ := splitContentWidths(width, 28, 24)
+	layout := newSplitBodyLayout(width, height, leftWidth)
+	if layout.leftBody.contains(x, y) {
+		localY := y - layout.leftBody.y
+		switch {
+		case localY == 0:
+			s.uninstallSelected(app)
+		case localY == 1:
+			s.uninstallAll(app)
+		case localY >= 3:
+			idx := localY - 3
+			if idx >= 0 && idx < len(s.mods) {
+				s.cursor = idx
+				key := s.mods[idx].DirName
+				s.selected[key] = !s.selected[key]
+			}
+		}
+	}
+	return nil
+}
+
 func (s *uninstallScreen) uninstallSelected(app *appModel) {
 	names := make([]string, 0)
 	for _, mod := range s.mods {
@@ -108,21 +133,25 @@ func (s *uninstallScreen) uninstallAll(app *appModel) {
 
 func (s *uninstallScreen) view(app *appModel, width, height int) string {
 	if s.err != "" {
-		return renderFlatColumn(t("Status"), s.err+"\n\n"+t("Open Settings to configure the game path before uninstalling."), width, height)
+		return s.err + "\n\n" + t("Open Settings to configure the game path before uninstalling.")
 	}
 	if len(s.mods) == 0 {
-		return renderFlatColumn(t("Status"), t("No installed mods were found in the game's mods directory."), width, height)
+		return t("No installed mods were found in the game's mods directory.")
 	}
 	items := make([]string, 0, len(s.mods))
 	for _, mod := range s.mods {
 		items = append(items, renderInstalledModListLabel(mod, s.selected[mod.DirName]))
 	}
-	leftWidth, rightWidth := splitContentWidths(width, 28, 24)
-	left := renderFlatColumn(t("Installed Mods"), renderList(items, s.cursor, app.focus == focusContent), leftWidth, height)
-	right := renderFlatColumn(t("Removal Details"), renderInstalledModDetail(s.mods[s.cursor]), rightWidth, height)
-	return joinFlatColumns(left, right, leftWidth, rightWidth)
+	leftWidth, _ := splitContentWidths(width, 28, 24)
+	leftBody := strings.Join([]string{
+		renderActionLine(t("Remove Selected"), false),
+		renderActionLine(t("Remove All"), false),
+		"",
+		renderList(items, s.cursor, app.focus == focusContent),
+	}, "\n")
+	return renderSplitBody(t("Installed Mods"), leftBody, t("Removal Details"), renderInstalledModDetail(s.mods[s.cursor]), width, height, leftWidth)
 }
 
 func (s *uninstallScreen) help() string {
-	return t("Uninstall: up/down move | space toggle | d remove selected | x remove all")
+	return t("Uninstall: click rows or action buttons | up/down move | space toggle | d remove selected | x remove all")
 }
