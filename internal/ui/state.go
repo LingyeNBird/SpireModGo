@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"slaymodgo/internal/manager"
+	"spiremodgo/internal/manager"
 )
 
 type State struct {

@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"slaymodgo/internal/manager"
+	"spiremodgo/internal/manager"
 )
 
 const (
