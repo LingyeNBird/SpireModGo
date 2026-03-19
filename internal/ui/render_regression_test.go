@@ -121,6 +121,20 @@ func TestRenderValueControlUsesSharedSelectorShape(tt *testing.T) {
 	}
 }
 
+func TestRenderValueControlWithDetailShowsSecondaryLine(tt *testing.T) {
+	got := ansi.Strip(renderValueControlWithDetail("Switch User", "Alice", "76561198000000001", true, true))
+	lines := strings.Split(got, "\n")
+	if len(lines) != 2 {
+		tt.Fatalf("expected two-line selector, got %d lines: %q", len(lines), got)
+	}
+	if lines[0] != "> Switch User  [ < Alice > ]" {
+		tt.Fatalf("expected user selector line, got %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "<76561198000000001>") {
+		tt.Fatalf("expected detail line to contain steam id, got %q", lines[1])
+	}
+}
+
 func TestComputeLayoutStacksHelpBelowMenu(tt *testing.T) {
 	m := &appModel{width: 120, height: 40}
 	layout := m.computeLayout()

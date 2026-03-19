@@ -139,14 +139,21 @@ func (s *State) ListSteamIDs() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(ids) == 0 {
-		s.selectedSteamID = ""
-		return ids, nil
-	}
-	if !containsString(ids, s.selectedSteamID) {
-		s.selectedSteamID = ids[0]
-	}
+	s.normalizeSelectedSteamID(ids)
 	return ids, nil
+}
+
+func (s *State) ListSteamProfiles() ([]manager.SteamProfile, error) {
+	profiles, err := s.manager.ListSteamProfiles()
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		ids = append(ids, profile.SteamID)
+	}
+	s.normalizeSelectedSteamID(ids)
+	return profiles, nil
 }
 
 func (s *State) SelectedSteamID() string {
@@ -237,4 +244,14 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func (s *State) normalizeSelectedSteamID(ids []string) {
+	if len(ids) == 0 {
+		s.selectedSteamID = ""
+		return
+	}
+	if !containsString(ids, s.selectedSteamID) {
+		s.selectedSteamID = ids[0]
+	}
 }

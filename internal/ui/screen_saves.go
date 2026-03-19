@@ -16,7 +16,7 @@ type savesScreen struct {
 	lastSlotCursor int
 	backupCursor   int
 	section        int
-	steamIDs       []string
+	steamProfiles  []manager.SteamProfile
 	normalSlots    []manager.SaveSlotInfo
 	moddedSlots    []manager.SaveSlotInfo
 	backups        []manager.BackupInfo
@@ -31,13 +31,13 @@ func (s *savesScreen) refresh(app *appModel) {
 		s.lastSlotCursor = 1
 	}
 	s.err = ""
-	ids, err := app.state.ListSteamIDs()
-	s.steamIDs = ids
+	profiles, err := app.state.ListSteamProfiles()
+	s.steamProfiles = profiles
 	if err != nil {
 		s.err = app.localizeError(err)
 		return
 	}
-	if len(ids) == 0 {
+	if len(profiles) == 0 {
 		return
 	}
 	normalSlots, err := app.state.ListSaveSlots(manager.SaveTypeNormal)
@@ -125,18 +125,18 @@ func (s *savesScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, 
 		localX, localY := x-layout.leftBody.x, y-layout.leftBody.y
 		s.section = 0
 		switch localY {
-		case 0:
+		case 0, 1:
 			s.listCursor = 0
 			if localX < layout.leftBody.width/2 {
 				s.switchSteamProfile(app, -1)
 			} else {
 				s.switchSteamProfile(app, 1)
 			}
-		case 3, 4, 5:
-			s.listCursor = localY - 2
+		case 4, 5, 6:
+			s.listCursor = localY - 3
 			s.lastSlotCursor = s.listCursor
-		case 8, 9, 10:
-			s.listCursor = localY - 4
+		case 9, 10, 11:
+			s.listCursor = localY - 5
 			s.lastSlotCursor = s.listCursor
 		}
 		return nil
@@ -173,7 +173,7 @@ func (s *savesScreen) view(app *appModel, width, height int) string {
 	if s.err != "" {
 		return t("Save management error\n\n%s", s.err)
 	}
-	if len(s.steamIDs) == 0 {
+	if len(s.steamProfiles) == 0 {
 		return t("No Steam save profiles were found under:\n\n%s\n\nLaunch the game once to create the save folders, then refresh this screen.", app.manager.SaveRoot)
 	}
 	leftWidth := maxInt(1, (width-3)/2)
@@ -186,7 +186,7 @@ func (s *savesScreen) help() helpSection {
 	return helpSection{
 		Title: t("Saves:"),
 		Items: []helpItem{
-			{Action: t("left/right"), Description: t("switch Steam profile")},
+			{Action: t("left/right"), Description: t("switch user")},
 			{Action: t("Click"), Description: t("slots and backups")},
 			{Action: t("c"), Description: t("copy")},
 			{Action: t("b"), Description: t("backup")},
@@ -197,11 +197,28 @@ func (s *savesScreen) help() helpSection {
 }
 
 func (s *savesScreen) renderLeftList(app *appModel, width int) string {
-	lines := []string{renderSelectableLine(renderValueControl(t("Steam ID"), app.state.SelectedSteamID()), s.listCursor == 0, app.focus == focusContent && s.section == 0), "", t("Vanilla Saves")}
+	profile := s.selectedSteamProfile(app)
+	lines := []string{renderValueControlWithDetail(t("Switch User"), profile.DisplayName, profile.SteamID, s.listCursor == 0, app.focus == focusContent && s.section == 0), "", t("Vanilla Saves")}
 	lines = append(lines, strings.Split(s.renderSaveSlotTable(manager.SaveTypeNormal, s.normalSlots, width, s.selectedTableSlot(manager.SaveTypeNormal), app.focus == focusContent && s.section == 0), "\n")...)
 	lines = append(lines, "", t("Modded Saves"))
 	lines = append(lines, strings.Split(s.renderSaveSlotTable(manager.SaveTypeModded, s.moddedSlots, width, s.selectedTableSlot(manager.SaveTypeModded), app.focus == focusContent && s.section == 0), "\n")...)
 	return strings.Join(lines, "\n")
+}
+
+func (s *savesScreen) selectedSteamProfile(app *appModel) manager.SteamProfile {
+	selectedID := app.state.SelectedSteamID()
+	for _, profile := range s.steamProfiles {
+		if profile.SteamID == selectedID {
+			return profile
+		}
+	}
+	if len(s.steamProfiles) > 0 {
+		return s.steamProfiles[0]
+	}
+	if selectedID != "" {
+		return manager.SteamProfile{SteamID: selectedID, DisplayName: selectedID}
+	}
+	return manager.SteamProfile{}
 }
 
 func (s *savesScreen) selectedTableSlot(saveType manager.SaveType) int {
@@ -298,19 +315,20 @@ func (s *savesScreen) renderBackupLines(backups []manager.BackupInfo, focused bo
 }
 
 func (s *savesScreen) switchSteamProfile(app *appModel, delta int) {
-	if len(s.steamIDs) == 0 {
+	if len(s.steamProfiles) == 0 {
 		return
 	}
 	current := 0
-	for idx, steamID := range s.steamIDs {
-		if steamID == app.state.SelectedSteamID() {
+	for idx, profile := range s.steamProfiles {
+		if profile.SteamID == app.state.SelectedSteamID() {
 			current = idx
 			break
 		}
 	}
-	current = (current + delta + len(s.steamIDs)) % len(s.steamIDs)
-	app.state.SetSelectedSteamID(s.steamIDs[current])
-	app.logInfo("Switched active Steam profile to %s", s.steamIDs[current])
+	current = (current + delta + len(s.steamProfiles)) % len(s.steamProfiles)
+	selected := s.steamProfiles[current]
+	app.state.SetSelectedSteamID(selected.SteamID)
+	app.logInfo("Switched active Steam profile to %s", selected.SteamID)
 	s.refresh(app)
 }
 

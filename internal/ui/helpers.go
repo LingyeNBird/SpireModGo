@@ -329,3 +329,12 @@ func renderActionLine(label string, active bool) string {
 func renderValueControl(label, value string) string {
 	return label + "  " + formatSelectorLabel(value)
 }
+
+func renderValueControlWithDetail(label, value, detail string, selected, focused bool) string {
+	lines := []string{renderSelectableLine(renderValueControl(label, value), selected, focused)}
+	if strings.TrimSpace(detail) != "" {
+		indent := strings.Repeat(" ", lipgloss.Width(label)+4)
+		lines = append(lines, mutedStyle.Render(indent+"<"+detail+">"))
+	}
+	return strings.Join(lines, "\n")
+}
