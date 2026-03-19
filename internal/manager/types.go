@@ -73,6 +73,23 @@ type InstallResult struct {
 	EnableChanged bool
 }
 
+type ArchiveImportCandidate struct {
+	Name string
+}
+
+type ArchiveImportResult struct {
+	Name          string
+	Destination   string
+	FilesCopied   int
+	EnableChanged bool
+}
+
+type ArchiveExportResult struct {
+	ZipPath    string
+	ModCount   int
+	FilesAdded int
+}
+
 type SaveSlotInfo struct {
 	Type          SaveType
 	Slot          int

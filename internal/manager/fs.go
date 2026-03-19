@@ -60,6 +60,54 @@ func copyFileWithReplaceFallback(srcPath, dstPath string) (bool, string, error) 
 	return true, backupName, nil
 }
 
+func copyStreamWithReplaceFallback(open func() (io.ReadCloser, error), dstPath string, mode os.FileMode, modTime time.Time) (bool, string, error) {
+	if err := copyReaderToFile(open, dstPath, mode, modTime); err == nil {
+		return false, "", nil
+	}
+
+	if _, statErr := os.Stat(dstPath); statErr != nil {
+		return false, "", copyReaderToFile(open, dstPath, mode, modTime)
+	}
+
+	backupName := fmt.Sprintf("%s.bak.%d", filepath.Base(dstPath), rand.New(rand.NewSource(time.Now().UnixNano())).Int())
+	backupPath := filepath.Join(filepath.Dir(dstPath), backupName)
+	if err := os.Rename(dstPath, backupPath); err != nil {
+		return false, "", err
+	}
+	if err := copyReaderToFile(open, dstPath, mode, modTime); err != nil {
+		return true, backupName, err
+	}
+	return true, backupName, nil
+}
+
+func copyReaderToFile(open func() (io.ReadCloser, error), dstPath string, mode os.FileMode, modTime time.Time) error {
+	reader, err := open()
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	if err := ensureDir(filepath.Dir(dstPath)); err != nil {
+		return err
+	}
+	if mode == 0 {
+		mode = 0o644
+	}
+	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, reader); err != nil {
+		return err
+	}
+	if modTime.IsZero() {
+		modTime = time.Now()
+	}
+	return os.Chtimes(dstPath, time.Now(), modTime)
+}
+
 func copyDirRecursive(srcDir, dstDir string) (int, error) {
 	count := 0
 	err := filepath.WalkDir(srcDir, func(path string, d os.DirEntry, walkErr error) error {

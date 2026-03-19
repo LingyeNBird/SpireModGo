@@ -36,13 +36,6 @@ type UninstallResult struct {
 }
 
 func (m *Manager) ListAvailableMods(gameDir string) ([]ModPackage, error) {
-	entries, err := os.ReadDir(m.ModsSource)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
 	installed, err := m.ListInstalledMods(gameDir)
 	if err != nil {
 		return nil, err
@@ -52,35 +45,44 @@ func (m *Manager) ListAvailableMods(gameDir string) ([]ModPackage, error) {
 		installedMap[mod.DirName] = mod
 	}
 
-	mods := make([]ModPackage, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		fullPath := filepath.Join(m.ModsSource, entry.Name())
-		manifest, _ := readManifest(fullPath)
-		installName := getInstallName(fullPath, manifest)
-		needsRepair, repairHint := inspectModRepairNeed(fullPath, manifest)
-		label := formatModLabel(entry.Name(), manifest, installName)
-		mod := ModPackage{
-			DirName:     entry.Name(),
-			SourcePath:  fullPath,
-			InstallName: installName,
-			Label:       label,
-			Manifest:    manifest,
-			NeedsRepair: needsRepair,
-			RepairHint:  repairHint,
-		}
-		if installedMod, ok := installedMap[installName]; ok {
-			mod.Installed = true
-			if installedMod.Manifest != nil {
-				mod.InstalledVersion = installedMod.Manifest.Version
+	mods := make([]ModPackage, 0)
+	for _, root := range m.AvailableModsRoots() {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
 			}
-			if manifest != nil && installedMod.Manifest != nil && manifest.Version != "" && installedMod.Manifest.Version != "" && manifest.Version != installedMod.Manifest.Version {
-				mod.Updatable = true
-			}
+			return nil, err
 		}
-		mods = append(mods, mod)
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			fullPath := filepath.Join(root, entry.Name())
+			manifest, _ := readManifest(fullPath)
+			installName := getInstallName(fullPath, manifest)
+			needsRepair, repairHint := inspectModRepairNeed(fullPath, manifest)
+			label := formatModLabel(entry.Name(), manifest, installName)
+			mod := ModPackage{
+				DirName:     entry.Name(),
+				SourcePath:  fullPath,
+				InstallName: installName,
+				Label:       label,
+				Manifest:    manifest,
+				NeedsRepair: needsRepair,
+				RepairHint:  repairHint,
+			}
+			if installedMod, ok := installedMap[installName]; ok {
+				mod.Installed = true
+				if installedMod.Manifest != nil {
+					mod.InstalledVersion = installedMod.Manifest.Version
+				}
+				if manifest != nil && installedMod.Manifest != nil && manifest.Version != "" && installedMod.Manifest.Version != "" && manifest.Version != installedMod.Manifest.Version {
+					mod.Updatable = true
+				}
+			}
+			mods = append(mods, mod)
+		}
 	}
 	sort.Slice(mods, func(i, j int) bool {
 		return strings.ToLower(mods[i].Label) < strings.ToLower(mods[j].Label)
@@ -149,21 +151,28 @@ func findManifestPath(modDir string) string {
 }
 
 func getInstallName(modDir string, manifest *ModManifest) string {
-	if manifest != nil && stringsTrimSpace(manifest.PckName) != "" {
-		return manifest.PckName
-	}
 	entries, _ := os.ReadDir(modDir)
+	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-		name := entry.Name()
+		names = append(names, entry.Name())
+	}
+	return installNameFromFileNames(filepath.Base(modDir), names, manifest)
+}
+
+func installNameFromFileNames(dirName string, fileNames []string, manifest *ModManifest) string {
+	if manifest != nil && stringsTrimSpace(manifest.PckName) != "" {
+		return manifest.PckName
+	}
+	for _, name := range fileNames {
 		if strings.Contains(name, ".bak") || filepath.Ext(name) != ".dll" {
 			continue
 		}
 		return strings.TrimSuffix(name, filepath.Ext(name))
 	}
-	return filepath.Base(modDir)
+	return dirName
 }
 
 func formatModLabel(dirName string, manifest *ModManifest, installName string) string {

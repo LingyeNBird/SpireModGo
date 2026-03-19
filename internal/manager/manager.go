@@ -14,6 +14,7 @@ type Manager struct {
 	BaseDir           string
 	ConfigPath        string
 	ModsSource        string
+	UserModsSource    string
 	SaveRoot          string
 	LogDir            string
 	Config            Config
@@ -33,12 +34,13 @@ func New(baseDir string) (*Manager, error) {
 
 	baseDir = filepath.Clean(baseDir)
 	m := &Manager{
-		BaseDir:    baseDir,
-		ConfigPath: filepath.Join(baseDir, "modmanager.json"),
-		ModsSource: filepath.Join(baseDir, "Mods"),
-		SaveRoot:   filepath.Join(os.Getenv("APPDATA"), "SlayTheSpire2", "steam"),
-		LogDir:     filepath.Join(baseDir, "logs"),
-		Config:     Config{},
+		BaseDir:        baseDir,
+		ConfigPath:     filepath.Join(baseDir, "modmanager.json"),
+		ModsSource:     filepath.Join(baseDir, "Mods"),
+		UserModsSource: filepath.Join(os.Getenv("APPDATA"), "SpireModGo", "mods"),
+		SaveRoot:       filepath.Join(os.Getenv("APPDATA"), "SlayTheSpire2", "steam"),
+		LogDir:         filepath.Join(baseDir, "logs"),
+		Config:         Config{},
 	}
 	if err := m.initLogger(); err != nil {
 		return nil, err
@@ -135,4 +137,38 @@ func (m *Manager) logf(format string, args ...any) {
 	if m.logger != nil {
 		m.logger.Printf(format, args...)
 	}
+}
+
+func (m *Manager) PreferredAvailableModsRoot() string {
+	if dirExists(m.ModsSource) {
+		return m.ModsSource
+	}
+	return m.UserModsSource
+}
+
+func (m *Manager) AvailableModsRoots() []string {
+	roots := make([]string, 0, 2)
+	seen := map[string]bool{}
+	for _, root := range []string{m.ModsSource, m.UserModsSource} {
+		clean := filepath.Clean(root)
+		if seen[clean] {
+			continue
+		}
+		seen[clean] = true
+		if dirExists(clean) {
+			roots = append(roots, clean)
+		}
+	}
+	if len(roots) == 0 {
+		return []string{m.PreferredAvailableModsRoot()}
+	}
+	return roots
+}
+
+func (m *Manager) DisplayAvailableModsRoot() string {
+	roots := m.AvailableModsRoots()
+	if len(roots) == 0 {
+		return m.PreferredAvailableModsRoot()
+	}
+	return strings.Join(roots, " | ")
 }

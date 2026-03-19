@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -212,5 +213,179 @@ func TestRepairModCreatesTargetJsonAndRemovesLegacyManifest(t *testing.T) {
 	}
 	if manifest["has_pck"] != true {
 		t.Fatalf("expected repaired config to set has_pck, got %v", manifest["has_pck"])
+	}
+}
+
+func TestImportAvailableModsFromZipFallsBackToUserModsRoot(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+	m, err := New(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	m.UserModsSource = filepath.Join(baseDir, "userdata", "SpireModGo", "mods")
+
+	zipPath := filepath.Join(baseDir, "SpeedX.zip")
+	writeTestZip(t, zipPath, map[string]string{
+		"SpeedX.dll":               "dll",
+		"SpeedX.pck":               "pck",
+		"SpeedX.json":              `{"pck_name":"SpeedX","name":"SpeedX","version":"1.0.0"}`,
+		"data/config/settings.txt": "nested",
+	})
+
+	results, err := m.ImportAvailableModsFromZip(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected one imported mod, got %d", len(results))
+	}
+	if results[0].Destination != filepath.Join(m.UserModsSource, "SpeedX") {
+		t.Fatalf("unexpected destination: %s", results[0].Destination)
+	}
+	if !fileExists(filepath.Join(m.UserModsSource, "SpeedX", "SpeedX.dll")) {
+		t.Fatal("expected dll to be imported into user mods root")
+	}
+	if !fileExists(filepath.Join(m.UserModsSource, "SpeedX", "data", "config", "settings.txt")) {
+		t.Fatal("expected nested files to be imported")
+	}
+}
+
+func TestImportInstalledModsFromZipEnablesSettings(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+	m, err := New(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	m.SaveRoot = filepath.Join(baseDir, "steam")
+	settingsPath := filepath.Join(m.SaveRoot, "76561197960265729", "settings.save")
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settingsPath, []byte(`{"mod_settings":{"mods_enabled":false}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	zipPath := filepath.Join(baseDir, "bundle.zip")
+	writeTestZip(t, zipPath, map[string]string{
+		"folder/SpeedX.dll":  "dll",
+		"folder/SpeedX.pck":  "pck",
+		"folder/SpeedX.json": `{"pck_name":"SpeedX","name":"SpeedX","version":"1.0.0"}`,
+	})
+
+	gameDir := filepath.Join(baseDir, "game")
+	results, err := m.ImportInstalledModsFromZip(gameDir, zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || !results[0].EnableChanged {
+		t.Fatalf("expected one imported mod with enable change, got %+v", results)
+	}
+	if !fileExists(filepath.Join(gameDir, "mods", "SpeedX", "SpeedX.dll")) {
+		t.Fatal("expected dll to be imported into game mods root")
+	}
+}
+
+func TestExportAvailableModsToZipWritesSelectedFolders(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+	m, err := New(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+
+	modDir := filepath.Join(m.ModsSource, "SpeedX_v1.0.0")
+	if err := os.MkdirAll(filepath.Join(modDir, "data"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "SpeedX.dll"), []byte("dll"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "data", "settings.txt"), []byte("nested"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := m.ExportAvailableModsToZip([]ModPackage{{DirName: "SpeedX_v1.0.0", SourcePath: modDir}}, filepath.Join(baseDir, "export.zip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.FilesAdded != 2 {
+		t.Fatalf("expected two files in export zip, got %d", result.FilesAdded)
+	}
+	reader, err := zip.OpenReader(result.ZipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	seen := map[string]bool{}
+	for _, file := range reader.File {
+		seen[file.Name] = true
+	}
+	if !seen["SpeedX_v1.0.0/SpeedX.dll"] || !seen["SpeedX_v1.0.0/data/settings.txt"] {
+		t.Fatalf("unexpected archive contents: %v", seen)
+	}
+}
+
+func TestPreviewZipModsUsesDLLNameWithoutManifest(t *testing.T) {
+	t.Parallel()
+	zipPath := filepath.Join(t.TempDir(), "bundle.zip")
+	writeTestZip(t, zipPath, map[string]string{
+		"folder/SpeedX.dll": "dll",
+		"folder/SpeedX.pck": "pck",
+	})
+	scans, err := scanZipModCandidates(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scans) != 1 || scans[0].Name != "SpeedX" {
+		t.Fatalf("expected DLL-derived mod name, got %+v", scans)
+	}
+}
+
+func TestPreviewZipModsIgnoresUnrelatedJSON(t *testing.T) {
+	t.Parallel()
+	zipPath := filepath.Join(t.TempDir(), "bundle.zip")
+	writeTestZip(t, zipPath, map[string]string{
+		"folder/SpeedX.dll":  "dll",
+		"folder/SpeedX.pck":  "pck",
+		"folder/data.json":   `{"name":"wrong"}`,
+		"folder/SpeedX.json": `{"pck_name":"SpeedX","name":"SpeedX"}`,
+	})
+	scans, err := scanZipModCandidates(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scans) != 1 || scans[0].Name != "SpeedX" {
+		t.Fatalf("expected mod manifest naming, got %+v", scans)
+	}
+}
+
+func writeTestZip(t *testing.T, zipPath string, files map[string]string) {
+	t.Helper()
+	file, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	writer := zip.NewWriter(file)
+	for name, data := range files {
+		entry, err := writer.Create(name)
+		if err != nil {
+			_t := writer.Close()
+			_ = _t
+			t.Fatal(err)
+		}
+		if _, err := entry.Write([]byte(data)); err != nil {
+			_t := writer.Close()
+			_ = _t
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
