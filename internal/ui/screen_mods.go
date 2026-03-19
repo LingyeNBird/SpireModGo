@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"slaymodgo/internal/manager"
 )
@@ -114,20 +115,24 @@ func (s *modsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, h
 	localY := y - layout.leftBody.y
 	switch {
 	case localY == 0:
-		if localX < layout.leftBody.width/2 {
+		switch s.tabIndexAt(localX) {
+		case 0:
 			s.tab = modsTabAvailable
-		} else {
+		case 1:
 			s.tab = modsTabInstalled
 		}
 	case localY == 2:
-		if localX < layout.leftBody.width/3 {
+		switch s.actionIndexAt(localX) {
+		case 0:
 			s.selectAllCurrent()
-		} else if localX < (layout.leftBody.width/3)*2 {
+		case 1:
 			s.clearCurrentSelection()
-		} else if s.tab == modsTabAvailable {
-			s.installSelected(app)
-		} else {
-			s.uninstallSelected(app)
+		case 2:
+			if s.tab == modsTabAvailable {
+				s.installSelected(app)
+			} else {
+				s.uninstallSelected(app)
+			}
 		}
 	case localY >= 3:
 		idx := localY - 3
@@ -264,6 +269,7 @@ func (s *modsScreen) view(app *appModel, width, height int) string {
 	tabLine := s.renderTabs()
 	actionLine := s.renderActions()
 	leftWidth := maxInt(1, (width-3)/2)
+	layout := newSplitBodyLayout(width, height, leftWidth)
 	if s.tab == modsTabAvailable {
 		if s.availableErr != "" {
 			return renderSplitBody(t("Mod Management"), strings.Join([]string{tabLine, "", s.availableErr}, "\n"), t("Mod Details"), t("Failed to load available packages:\n\n%s", s.availableErr), width, height, leftWidth)
@@ -274,29 +280,53 @@ func (s *modsScreen) view(app *appModel, width, height int) string {
 		}
 		detail := t("No packages were found in the bundled Mods directory.")
 		if len(s.available) > 0 {
-			detail = renderAvailableModDetail(s.available[s.availableCursor])
+			detail = wrapBodyText(renderAvailableModDetail(s.available[s.availableCursor]), layout.rightBody.width)
 		}
 		leftBody := strings.Join([]string{tabLine, "", actionLine, renderList(items, s.availableCursor, app.focus == focusContent)}, "\n")
 		return renderSplitBody(t("Mod Management"), leftBody, t("Mod Details"), detail, width, height, leftWidth)
 	}
 	detail := t("No installed mods were found in the game's mods directory.")
 	if s.installedErr != "" {
-		detail = s.installedErr + "\n\n" + t("Open Settings to configure the game path before uninstalling.")
+		detail = wrapBodyText(s.installedErr+"\n\n"+t("Open Settings to configure the game path before uninstalling."), layout.rightBody.width)
 	}
 	items := make([]string, 0, len(s.installed))
 	for _, mod := range s.installed {
 		items = append(items, renderInstalledModListLabel(mod, s.installedSelected[mod.DirName]))
 	}
 	if s.installedErr == "" && len(s.installed) > 0 {
-		detail = renderInstalledModDetail(s.installed[s.installedCursor])
+		detail = wrapBodyText(renderInstalledModDetail(s.installed[s.installedCursor]), layout.rightBody.width)
 	}
 	leftBody := strings.Join([]string{tabLine, "", actionLine, renderList(items, s.installedCursor, app.focus == focusContent)}, "\n")
 	return renderSplitBody(t("Mod Management"), leftBody, t("Mod Details"), detail, width, height, leftWidth)
 }
 
+func (s *modsScreen) actionLabels() []string {
+	labels := []string{t("Select All"), t("Clear Selection")}
+	if s.tab == modsTabAvailable {
+		return append(labels, t("Install"))
+	}
+	return append(labels, t("Uninstall"))
+}
+
+func (s *modsScreen) actionIndexAt(localX int) int {
+	offset := 0
+	for idx, label := range s.actionLabels() {
+		width := lipgloss.Width(label)
+		if localX >= offset && localX < offset+width {
+			return idx
+		}
+		offset += width
+		if idx < len(s.actionLabels())-1 {
+			offset += 2
+		}
+	}
+	return -1
+}
+
 func (s *modsScreen) renderTabs() string {
-	available := t("Not Installed [%d]", len(s.available))
-	installed := t("Installed [%d]", len(s.installed))
+	segments := s.tabLabels()
+	available := segments[0]
+	installed := segments[1]
 	if s.tab == modsTabAvailable {
 		available = ">" + available + "<"
 	} else {
@@ -305,11 +335,33 @@ func (s *modsScreen) renderTabs() string {
 	return available + "  " + installed
 }
 
-func (s *modsScreen) renderActions() string {
+func (s *modsScreen) tabLabels() []string {
+	return []string{t("Not Installed [%d]", len(s.available)), t("Installed [%d]", len(s.installed))}
+}
+
+func (s *modsScreen) tabIndexAt(localX int) int {
+	segments := s.tabLabels()
 	if s.tab == modsTabAvailable {
-		return strings.Join([]string{t("Select All"), t("Clear Selection"), t("Install")}, "  ")
+		segments[0] = ">" + segments[0] + "<"
+	} else {
+		segments[1] = ">" + segments[1] + "<"
 	}
-	return strings.Join([]string{t("Select All"), t("Clear Selection"), t("Uninstall")}, "  ")
+	offset := 0
+	for idx, segment := range segments {
+		width := lipgloss.Width(segment)
+		if localX >= offset && localX < offset+width {
+			return idx
+		}
+		offset += width
+		if idx < len(segments)-1 {
+			offset += 2
+		}
+	}
+	return -1
+}
+
+func (s *modsScreen) renderActions() string {
+	return strings.Join(s.actionLabels(), "  ")
 }
 
 func (s *modsScreen) help() string {

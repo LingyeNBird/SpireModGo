@@ -4,21 +4,26 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+const settingsInputHeight = 3
+
 type settingsScreen struct {
-	input        textinput.Model
+	input        textarea.Model
 	actionCursor int
 	editing      bool
 	summary      string
 }
 
 func (s *settingsScreen) init() {
-	input := textinput.New()
+	input := textarea.New()
 	input.Placeholder = t("Enter SlayTheSpire2 directory")
-	input.Width = 48
+	input.ShowLineNumbers = false
+	input.Prompt = ""
+	input.SetHeight(settingsInputHeight)
+	input.SetWidth(48)
 	s.input = input
 }
 
@@ -105,19 +110,23 @@ func (s *settingsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, widt
 	}
 	leftWidth := maxInt(1, (width-3)/2)
 	layout := newSplitBodyLayout(width, height, leftWidth)
+	inputStart := 1
+	inputEnd := inputStart + settingsInputHeight - 1
+	editActionY := inputEnd + 2
+	actionStartY := editActionY + 1
 	if !layout.leftBody.contains(x, y) {
 		return nil
 	}
 	localY := y - layout.leftBody.y
 	switch {
-	case localY == 1:
+	case localY >= inputStart && localY <= inputEnd:
 		s.editing = true
 		s.input.Focus()
-	case localY == 3:
+	case localY == editActionY:
 		s.editing = true
 		s.input.Focus()
-	case localY >= 4 && localY < 9:
-		s.actionCursor = localY - 4
+	case localY >= actionStartY && localY < actionStartY+5:
+		s.actionCursor = localY - actionStartY
 		s.runAction(app)
 	}
 	return nil
@@ -173,14 +182,19 @@ func (s *settingsScreen) runAction(app *appModel) {
 
 func (s *settingsScreen) view(app *appModel, width, height int) string {
 	actions := []string{t("Auto Detect"), t("Save Path"), t("Clear Config"), t("Cleanup .bak"), t("Refresh")}
+	leftWidth := maxInt(1, (width-3)/2)
+	layout := newSplitBodyLayout(width, height, leftWidth)
 	if s.editing {
 		s.input.Prompt = "> "
+		_ = s.input.Focus()
 	} else {
 		s.input.Blur()
 		s.input.Prompt = "  "
 	}
+	s.input.Placeholder = t("Enter SlayTheSpire2 directory")
+	s.input.SetHeight(settingsInputHeight)
+	s.input.SetWidth(layout.leftBody.width)
 	actionText := renderList(actions, s.actionCursor, app.focus == focusContent && !s.editing)
-	leftWidth := maxInt(1, (width-3)/2)
 	leftBody := strings.Join([]string{
 		t("Game Dir"),
 		s.input.View(),
@@ -190,7 +204,8 @@ func (s *settingsScreen) view(app *appModel, width, height int) string {
 		"",
 		mutedStyle.Render(t("Press e to edit the path input.")),
 	}, "\n")
-	return renderSplitBody(t("Actions"), leftBody, t("Current Paths and State"), s.summary, width, height, leftWidth)
+	summary := wrapBodyText(s.summary, layout.rightBody.width)
+	return renderSplitBody(t("Actions"), leftBody, t("Current Paths and State"), summary, width, height, leftWidth)
 }
 
 func (s *settingsScreen) help() string {

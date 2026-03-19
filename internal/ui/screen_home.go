@@ -70,7 +70,10 @@ func (s *homeScreen) refresh(app *appModel) {
 
 func (s *homeScreen) view(app *appModel, width, height int) string {
 	leftWidth := maxInt(1, (width-3)/2)
-	return renderSplitBody(t("Information Overview"), s.overview, t("Feature Guide"), s.guide, width, height, leftWidth)
+	layout := newSplitBodyLayout(width, height, leftWidth)
+	overview := wrapBodyText(s.overview, layout.leftBody.width)
+	guide := wrapBodyText(s.guide, layout.rightBody.width)
+	return renderSplitBody(t("Information Overview"), overview, t("Feature Guide"), guide, width, height, leftWidth)
 }
 
 func (s *homeScreen) help() string {

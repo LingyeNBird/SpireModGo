@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"slaymodgo/internal/manager"
 )
@@ -195,22 +196,50 @@ func (m *appModel) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 }
 
 func overlayModal(base, overlay string, width, height int) string {
-	basePlaced := base
-	overlayPlaced := overlay
-	baseLines := strings.Split(basePlaced, "\n")
-	overlayLines := strings.Split(overlayPlaced, "\n")
-	if len(baseLines) < len(overlayLines) {
-		missing := len(overlayLines) - len(baseLines)
-		for i := 0; i < missing; i++ {
-			baseLines = append(baseLines, "")
+	lineCount := maxInt(height, maxInt(len(strings.Split(base, "\n")), len(strings.Split(overlay, "\n"))))
+	baseLines := strings.Split(base, "\n")
+	overlayLines := strings.Split(overlay, "\n")
+	merged := make([]string, 0, lineCount)
+	for idx := 0; idx < lineCount; idx++ {
+		baseLine := ""
+		if idx < len(baseLines) {
+			baseLine = padVisual(baseLines[idx], width)
+		} else {
+			baseLine = strings.Repeat(" ", width)
 		}
-	}
-	for idx, line := range overlayLines {
-		if strings.TrimSpace(line) != "" {
-			baseLines[idx] = line
+		if idx >= len(overlayLines) {
+			merged = append(merged, baseLine)
+			continue
 		}
+		overlayLine := padVisual(overlayLines[idx], width)
+		start, end, ok := overlayVisibleSpan(overlayLine, width)
+		if !ok {
+			merged = append(merged, baseLine)
+			continue
+		}
+		mergedLine := ansi.Cut(baseLine, 0, start) + ansi.Cut(overlayLine, start, end) + ansi.Cut(baseLine, end, width)
+		merged = append(merged, mergedLine)
 	}
-	return strings.Join(baseLines, "\n")
+	return strings.Join(merged, "\n")
+}
+
+func overlayVisibleSpan(line string, width int) (int, int, bool) {
+	start := -1
+	end := -1
+	for col := 0; col < width; col++ {
+		cell := ansi.Strip(ansi.Cut(line, col, col+1))
+		if strings.TrimSpace(cell) == "" {
+			continue
+		}
+		if start == -1 {
+			start = col
+		}
+		end = col + 1
+	}
+	if start == -1 {
+		return 0, 0, false
+	}
+	return start, end, true
 }
 
 func (m *appModel) handleNavKey(msg tea.KeyMsg) {

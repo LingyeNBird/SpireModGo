@@ -161,15 +161,15 @@ func renderCopyTargetModal(width, height int, modal modalState) string {
 	for i := 0; i < layout.frame.y && len(lines) < height; i++ {
 		lines = append(lines, strings.Repeat(" ", width))
 	}
-	lines = append(lines, strings.Repeat(" ", layout.frame.x)+makeTopBorder(modal.title, layout.frame.width)+strings.Repeat(" ", maxInt(0, width-layout.frame.x-layout.frame.width)))
+	lines = append(lines, strings.Repeat(" ", layout.frame.x)+makeTopBorderStyled(modal.title, layout.frame.width, copyModalBorderStyle, copyModalTitleStyle)+strings.Repeat(" ", maxInt(0, width-layout.frame.x-layout.frame.width)))
 	for _, line := range bodyLines {
 		if len(lines) >= height {
 			break
 		}
-		content := borderStyle.Render("│") + panelBodyStyle.Render(line) + borderStyle.Render("│")
+		content := copyModalBorderStyle.Render("│") + panelBodyStyle.Render(line) + copyModalBorderStyle.Render("│")
 		lines = append(lines, strings.Repeat(" ", layout.frame.x)+content+strings.Repeat(" ", maxInt(0, width-layout.frame.x-layout.frame.width)))
 	}
-	bottom := renderBorderButtonRow([]string{t("Copy"), t("Backup and Copy"), t("Cancel")}, layout.frame.width, modal.actionCursor)
+	bottom := renderBorderButtonRowStyled([]string{t("Copy"), t("Backup and Copy"), t("Cancel")}, layout.frame.width, modal.actionCursor, copyModalBorderStyle, copyModalTitleStyle, copyModalMutedStyle)
 	if len(lines) < height {
 		lines = append(lines, strings.Repeat(" ", layout.frame.x)+bottom+strings.Repeat(" ", maxInt(0, width-layout.frame.x-layout.frame.width)))
 	}

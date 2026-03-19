@@ -80,7 +80,7 @@ func renderPanel(title, body string, width, height int) string {
 	height = maxInt(3, height)
 	bodyLines := normalizeLines(body, width-2, height-2)
 	lines := make([]string, 0, height)
-	lines = append(lines, borderStyle.Render(makeTopBorder(title, width)))
+	lines = append(lines, makeTopBorder(title, width))
 	for _, line := range bodyLines {
 		lines = append(lines, borderStyle.Render("│")+panelBodyStyle.Render(line)+borderStyle.Render("│"))
 	}
@@ -114,13 +114,17 @@ func renderSplitPanel(leftTitle, leftBody, rightTitle, rightBody string, width, 
 }
 
 func renderBorderButtonRow(labels []string, width int, active int) string {
+	return renderBorderButtonRowStyled(labels, width, active, borderStyle, titleStyle, mutedStyle)
+}
+
+func renderBorderButtonRowStyled(labels []string, width int, active int, border lipgloss.Style, activeTitle lipgloss.Style, inactiveTitle lipgloss.Style) string {
 	segments := make([]string, 0, len(labels))
 	for idx, label := range labels {
 		segment := "|" + label + "|"
 		if idx == active {
-			segment = titleStyle.Render(segment)
+			segment = activeTitle.Render(segment)
 		} else {
-			segment = mutedStyle.Render(segment)
+			segment = inactiveTitle.Render(segment)
 		}
 		segments = append(segments, segment)
 	}
@@ -139,7 +143,7 @@ func renderBorderButtonRow(labels []string, width int, active int) string {
 		line += strings.Repeat("─", bodyWidth+1-used)
 	}
 	line += "╯"
-	return borderStyle.Render(line)
+	return border.Render(line)
 }
 
 func renderMenuBody(items []string, cursor, width, height int, focused bool) (string, []rect) {
@@ -196,6 +200,10 @@ func normalizeLines(body string, width, height int) []string {
 }
 
 func makeTopBorder(title string, width int) string {
+	return makeTopBorderStyled(title, width, borderStyle, titleStyle)
+}
+
+func makeTopBorderStyled(title string, width int, border lipgloss.Style, titleRenderer lipgloss.Style) string {
 	minTitleWidth := maxInt(1, width-6)
 	title = ansi.Truncate(title, minTitleWidth, "")
 	segment := "|" + title + "|"
@@ -206,7 +214,7 @@ func makeTopBorder(title string, width int) string {
 		segment = "|" + ansi.Truncate(title, maxInt(1, width-8), "") + "|"
 		remaining = maxInt(0, width-lipgloss.Width(prefix)-lipgloss.Width(segment)-lipgloss.Width(suffix))
 	}
-	return prefix + titleStyle.Render(segment) + strings.Repeat("─", remaining) + suffix
+	return border.Render(prefix) + titleRenderer.Render(segment) + border.Render(strings.Repeat("─", remaining)+suffix)
 }
 
 func makeSplitTopBorder(leftTitle, rightTitle string, leftWidth, rightWidth int) string {
@@ -232,6 +240,20 @@ func padVisual(text string, width int) string {
 	trimmed := ansi.Truncate(text, maxInt(1, width), "")
 	padding := maxInt(0, width-lipgloss.Width(trimmed))
 	return trimmed + strings.Repeat(" ", padding)
+}
+
+func wrapBodyText(body string, width int) string {
+	width = maxInt(1, width)
+	raw := strings.Split(body, "\n")
+	wrapped := make([]string, 0, len(raw))
+	for _, line := range raw {
+		if line == "" {
+			wrapped = append(wrapped, "")
+			continue
+		}
+		wrapped = append(wrapped, strings.Split(ansi.Hardwrap(line, width, true), "\n")...)
+	}
+	return strings.Join(wrapped, "\n")
 }
 
 func centerVisual(text string, width int) string {

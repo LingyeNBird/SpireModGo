@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -175,7 +176,7 @@ func (s *savesScreen) view(app *appModel, width, height int) string {
 		return t("No Steam save profiles were found under:\n\n%s\n\nLaunch the game once to create the save folders, then refresh this screen.", app.manager.SaveRoot)
 	}
 	leftWidth := maxInt(1, (width-3)/2)
-	leftBody := s.renderLeftList(app)
+	leftBody := s.renderLeftList(app, leftWidth)
 	rightBody := s.renderRightPanel(app)
 	return renderSplitBody(t("Save List"), leftBody, t("Save Management"), rightBody, width, height, leftWidth)
 }
@@ -184,18 +185,71 @@ func (s *savesScreen) help() string {
 	return t("Saves: left/right switch Steam profile | click slots and backups | c copy | b backup | r restore | x delete backup")
 }
 
-func (s *savesScreen) renderLeftList(app *appModel) string {
+func (s *savesScreen) renderLeftList(app *appModel, width int) string {
 	lines := []string{renderSelectableLine(renderValueControl(t("Steam ID"), app.state.SelectedSteamID()), s.listCursor == 0, app.focus == focusContent && s.section == 0), "", t("Vanilla Saves")}
-	for slot := 1; slot <= 3; slot++ {
-		label := t("%d  %s  %d backups", slot, buildSlotStatus(s.normalSlots[slot-1]), s.backupCountForSlot(manager.SaveTypeNormal, slot))
-		lines = append(lines, renderSelectableLine(label, s.listCursor == slot, app.focus == focusContent && s.section == 0))
-	}
+	lines = append(lines, strings.Split(s.renderSaveSlotTable(manager.SaveTypeNormal, s.normalSlots, width, s.selectedTableSlot(manager.SaveTypeNormal), app.focus == focusContent && s.section == 0), "\n")...)
 	lines = append(lines, "", t("Modded Saves"))
-	for slot := 1; slot <= 3; slot++ {
-		label := t("%d  %s  %d backups", slot, buildSlotStatus(s.moddedSlots[slot-1]), s.backupCountForSlot(manager.SaveTypeModded, slot))
-		lines = append(lines, renderSelectableLine(label, s.listCursor == slot+3, app.focus == focusContent && s.section == 0))
-	}
+	lines = append(lines, strings.Split(s.renderSaveSlotTable(manager.SaveTypeModded, s.moddedSlots, width, s.selectedTableSlot(manager.SaveTypeModded), app.focus == focusContent && s.section == 0), "\n")...)
 	return strings.Join(lines, "\n")
+}
+
+func (s *savesScreen) selectedTableSlot(saveType manager.SaveType) int {
+	switch {
+	case saveType == manager.SaveTypeNormal && s.listCursor >= 1 && s.listCursor <= 3:
+		return s.listCursor
+	case saveType == manager.SaveTypeModded && s.listCursor >= 4 && s.listCursor <= 6:
+		return s.listCursor - 3
+	default:
+		return 0
+	}
+}
+
+func (s *savesScreen) renderSaveSlotTable(saveType manager.SaveType, slots []manager.SaveSlotInfo, width int, selectedSlot int, focused bool) string {
+	backupWidth := lipgloss.Width(t("%d backups", 0))
+	for slot := 1; slot <= len(slots); slot++ {
+		backupWidth = maxInt(backupWidth, lipgloss.Width(t("%d backups", s.backupCountForSlot(saveType, slot))))
+	}
+	indicatorWidth := 2
+	slotWidth := 3
+	statusWidth := maxInt(8, width-indicatorWidth-slotWidth-backupWidth)
+	rows := make([]table.Row, 0, len(slots))
+	for slot := 1; slot <= len(slots); slot++ {
+		indicator := ""
+		if selectedSlot == slot {
+			indicator = ">"
+		}
+		rows = append(rows, table.Row{
+			indicator,
+			fmt.Sprintf("%d", slot),
+			buildSlotStatus(slots[slot-1]),
+			t("%d backups", s.backupCountForSlot(saveType, slot)),
+		})
+	}
+	styles := table.DefaultStyles()
+	styles.Header = lipgloss.NewStyle()
+	styles.Cell = lipgloss.NewStyle()
+	styles.Selected = lipgloss.NewStyle()
+	if selectedSlot > 0 {
+		styles.Selected = cursorStyle
+		if focused {
+			styles.Selected = focusStyle
+		}
+	}
+	tbl := table.New(
+		table.WithColumns([]table.Column{{Title: "", Width: indicatorWidth}, {Title: "", Width: slotWidth}, {Title: "", Width: statusWidth}, {Title: "", Width: backupWidth}}),
+		table.WithRows(rows),
+		table.WithWidth(width),
+		table.WithHeight(len(rows)+1),
+		table.WithStyles(styles),
+	)
+	if selectedSlot > 0 {
+		tbl.SetCursor(selectedSlot - 1)
+	}
+	view := tbl.View()
+	if cut := strings.Index(view, "\n"); cut >= 0 {
+		view = view[cut+1:]
+	}
+	return view
 }
 
 func (s *savesScreen) renderRightPanel(app *appModel) string {
