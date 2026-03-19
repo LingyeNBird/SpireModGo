@@ -1,11 +1,9 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"slaymodgo/internal/manager"
 )
@@ -24,6 +22,7 @@ type focusZone int
 const (
 	focusNav focusZone = iota
 	focusContent
+	focusLog
 )
 
 type App struct {
@@ -39,6 +38,7 @@ type appModel struct {
 	navIndex  int
 	focus     focusZone
 	modal     modalState
+	layout    shellLayout
 	logs      logModel
 	home      homeScreen
 	install   installScreen
@@ -50,7 +50,7 @@ type appModel struct {
 
 func NewApp(mgr *manager.Manager) *App {
 	model := newAppModel(mgr)
-	return &App{program: tea.NewProgram(model, tea.WithAltScreen())}
+	return &App{program: tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())}
 }
 
 func (a *App) Run() error {
@@ -82,8 +82,14 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.layout = m.computeLayout()
 		m.resizeLogViewport()
 		return m, nil
+	case tea.MouseMsg:
+		if m.modal.open {
+			return m, m.handleModalMouse(msg)
+		}
+		return m, m.handleMouse(msg)
 	case tea.KeyMsg:
 		if m.modal.open {
 			return m, m.handleModalKey(msg)
@@ -101,6 +107,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.handleNavKey(msg)
 			return m, nil
 		}
+		if m.focus == focusLog {
+			return m, m.handleLogKey(msg)
+		}
 		return m, m.handleScreenKey(msg)
 	}
 	return m, nil
@@ -110,18 +119,17 @@ func (m *appModel) View() string {
 	if m.width == 0 || m.height == 0 {
 		return t("Loading...")
 	}
-	sidebarWidth, mainWidth, contentHeight, logHeight, helpHeight := m.layoutMetrics()
-	sidebar := sidebarStyle.Width(sidebarWidth).Height(m.height).Render(m.renderSidebar(maxInt(18, sidebarWidth-3), maxInt(6, m.height-2)))
+	m.layout = m.computeLayout()
+	m.logs.Resize(m.layout.log.body.width, m.layout.log.body.height)
 
-	contentBodyHeight := maxInt(4, contentHeight-2)
-	logBodyHeight := maxInt(1, logHeight-2)
-	m.logs.Resize(maxInt(20, mainWidth-2), logBodyHeight)
-
-	content := renderFlatSection(screenName(m.current), m.renderCurrentScreen(maxInt(24, mainWidth-2), contentBodyHeight), mainWidth, contentHeight)
-	activity := renderFlatSection(t("Activity Log"), m.logs.View(), mainWidth, logHeight)
-	help := renderFlatSection(t("Help"), m.renderHelp(), mainWidth, helpHeight)
-	workspace := lipgloss.JoinVertical(lipgloss.Left, content, activity, help)
-	shell := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, workspace)
+	menuBody, menuItems := m.renderSidebar(m.layout.menu.body.width, m.layout.menu.body.height)
+	m.layout.menuItems = m.absoluteMenuRects(menuItems)
+	menu := renderPanel(t("Menu"), menuBody, m.layout.menu.frame.width, m.layout.menu.frame.height)
+	content := renderPanel(screenName(m.current), m.renderCurrentScreen(m.layout.page.body.width, m.layout.page.body.height), m.layout.page.frame.width, m.layout.page.frame.height)
+	activity := renderPanel(t("Activity Log"), m.logs.View(), m.layout.log.frame.width, m.layout.log.frame.height)
+	help := renderPanel(t("Help"), m.renderHelp(), m.layout.help.frame.width, m.layout.help.frame.height)
+	right := strings.Join([]string{content, activity}, "\n")
+	shell := strings.Join([]string{joinColumns(menu, right, m.layout.menu.frame.width, m.layout.page.frame.width), help}, "\n")
 
 	if m.modal.open {
 		return overlayModal(shell, renderModal(m.width, m.height, m.modal), m.width, m.height)
@@ -160,9 +168,12 @@ func (m *appModel) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 		m.logInfo("Refreshed %s screen", screenName(m.current))
 		return nil
 	case "tab":
-		if m.focus == focusNav {
+		switch m.focus {
+		case focusNav:
 			m.focus = focusContent
-		} else {
+		case focusContent:
+			m.focus = focusLog
+		default:
 			m.focus = focusNav
 		}
 		return nil
@@ -192,8 +203,8 @@ func (m *appModel) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 }
 
 func overlayModal(base, overlay string, width, height int) string {
-	basePlaced := lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, base)
-	overlayPlaced := lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, overlay)
+	basePlaced := base
+	overlayPlaced := overlay
 	baseLines := strings.Split(basePlaced, "\n")
 	overlayLines := strings.Split(overlayPlaced, "\n")
 	if len(baseLines) < len(overlayLines) {
@@ -224,6 +235,10 @@ func (m *appModel) handleNavKey(msg tea.KeyMsg) {
 		m.switchScreen(screenByNavIndex(m.navIndex))
 		m.focus = focusContent
 	}
+}
+
+func (m *appModel) handleLogKey(msg tea.KeyMsg) tea.Cmd {
+	return m.logs.Update(msg)
 }
 
 func (m *appModel) handleScreenKey(msg tea.KeyMsg) tea.Cmd {
@@ -266,65 +281,16 @@ func (m *appModel) refreshCurrentScreen() {
 	}
 }
 
-func (m *appModel) renderSidebar(width, height int) string {
-	gameDir := m.state.GameDir()
-	if gameDir == "" {
-		gameDir = t("(not configured)")
-	}
-	steamID := m.state.SelectedSteamID()
-	if steamID == "" {
-		steamID = t("(none)")
-	}
+func (m *appModel) renderSidebar(width, height int) (string, []rect) {
 	items := []string{
-		"1. " + t("Main Menu"),
-		"2. " + t("Install Mods"),
-		"3. " + t("Uninstall Mods"),
-		"4. " + t("Installed Mods"),
-		"5. " + t("Save Management"),
-		"6. " + t("Settings"),
+		t("Main Menu"),
+		t("Install Mods"),
+		t("Uninstall Mods"),
+		t("Installed Mods"),
+		t("Save Management"),
+		t("Settings"),
 	}
-	lines := make([]string, 0, len(items)+14)
-	lines = append(lines,
-		titleStyle.Render(t("Slay the Spire 2")),
-		accentStyle.Render(t("Mod Manager")),
-		"",
-		sectionTitleStyle.Render(t("Current Page")),
-		navActiveStyle.Render(screenName(m.current)),
-		"",
-		sectionTitleStyle.Render(t("Context")),
-		metaLabelStyle.Render(t("Game Dir")),
-		okStyle.Render(gameDir),
-		"",
-		metaLabelStyle.Render(t("Steam ID")),
-		okStyle.Render(steamID),
-		"",
-		metaLabelStyle.Render(t("Language: %s", localeDisplayName(currentLocale()))),
-		"",
-		sectionTitleStyle.Render(t("Pages")),
-	)
-	for idx, item := range items {
-		prefix := "  "
-		style := navItemStyle
-		if idx == m.navIndex {
-			prefix = "> "
-			style = navActiveStyle
-		}
-		if m.focus == focusNav && idx == m.navIndex {
-			style = navFocusStyle
-		}
-		lines = append(lines, style.Render(prefix+item))
-	}
-	lines = append(lines,
-		"",
-		sectionTitleStyle.Render(t("Keys")),
-		mutedStyle.Render(t("Up/Down select page")),
-		mutedStyle.Render(t("Enter open page")),
-		mutedStyle.Render(t("Tab switch focus")),
-		mutedStyle.Render(t("Ctrl+L toggle language")),
-		mutedStyle.Render(t("F5 refresh | q quit")),
-	)
-	content := strings.Join(lines, "\n")
-	return lipgloss.NewStyle().Width(width).Height(height).Render(content)
+	return renderMenuBody(items, m.navIndex, width, height, m.focus == focusNav)
 }
 
 func (m *appModel) renderCurrentScreen(width, height int) string {
@@ -345,7 +311,7 @@ func (m *appModel) renderCurrentScreen(width, height int) string {
 }
 
 func (m *appModel) renderHelp() string {
-	common := t("Global: sidebar navigation | Tab focus content | Shift+Tab/Esc return to sidebar | Ctrl+L toggle language | F5 refresh | q quit")
+	common := t("Global: click menu | click actions | Tab cycle panes | Esc return menu | Ctrl+L toggle language | F5 refresh | q quit")
 	screenHelp := ""
 	switch m.current {
 	case screenInstall:
@@ -361,40 +327,42 @@ func (m *appModel) renderHelp() string {
 	default:
 		screenHelp = m.home.help()
 	}
-	return common + "\n" + screenHelp
+	return common + "  •  " + screenHelp
 }
 
 func (m *appModel) resizeLogViewport() {
 	if m.width == 0 || m.height == 0 {
 		return
 	}
-	_, mainWidth, _, logHeight, _ := m.layoutMetrics()
-	m.logs.Resize(maxInt(20, mainWidth-2), maxInt(1, logHeight-2))
+	m.layout = m.computeLayout()
+	m.logs.Resize(m.layout.log.body.width, m.layout.log.body.height)
 }
 
-func (m *appModel) layoutMetrics() (int, int, int, int, int) {
-	sidebarWidth := clampInt(m.width/4, 24, 30)
-	if m.width < 84 {
-		sidebarWidth = clampInt(m.width/3, 20, 24)
+func (m *appModel) computeLayout() shellLayout {
+	width := maxInt(40, m.width)
+	height := maxInt(12, m.height)
+	helpHeight := 3
+	if height < 16 {
+		helpHeight = 2
 	}
-	mainWidth := maxInt(30, m.width-sidebarWidth)
-	helpHeight := 4
-	logHeight := clampInt(m.height/4, 5, 8)
-	contentHeight := m.height - logHeight - helpHeight
-	if contentHeight < 8 {
-		shortfall := 8 - contentHeight
-		if logHeight > 4 {
-			shrink := minInt(shortfall, logHeight-4)
-			logHeight -= shrink
-			shortfall -= shrink
-		}
-		if shortfall > 0 && helpHeight > 3 {
-			shrink := minInt(shortfall, helpHeight-3)
-			helpHeight -= shrink
-		}
-		contentHeight = maxInt(6, m.height-logHeight-helpHeight)
+	topHeight := maxInt(9, height-helpHeight)
+	menuWidth := clampInt(width/5, 18, 26)
+	if width < 80 {
+		menuWidth = clampInt(width/4, 16, 22)
 	}
-	return sidebarWidth, mainWidth, contentHeight, logHeight, helpHeight
+	rightWidth := maxInt(20, width-menuWidth)
+	logHeight := clampInt(topHeight/4, 4, 8)
+	pageHeight := topHeight - logHeight
+	if pageHeight < 6 {
+		pageHeight = 6
+		logHeight = maxInt(3, topHeight-pageHeight)
+	}
+	return shellLayout{
+		menu: newPanelLayout(0, 0, menuWidth, topHeight),
+		page: newPanelLayout(menuWidth, 0, rightWidth, pageHeight),
+		log:  newPanelLayout(menuWidth, pageHeight, rightWidth, logHeight),
+		help: newPanelLayout(0, topHeight, width, helpHeight),
+	}
 }
 
 func (m *appModel) showInfo(title, body string) {
@@ -420,6 +388,74 @@ func (m *appModel) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (m *appModel) handleModalMouse(msg tea.MouseMsg) tea.Cmd {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return nil
+	}
+	layout := modalLayout(m.width, m.height, m.modal)
+	if layout.confirmButton.contains(msg.X, msg.Y) && m.modal.confirm {
+		handler := m.modal.onConfirm
+		m.modal = modalState{}
+		if handler != nil {
+			handler(m)
+		}
+		return nil
+	}
+	if layout.closeButton.contains(msg.X, msg.Y) {
+		m.modal = modalState{}
+	}
+	return nil
+}
+
+func (m *appModel) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	if msg.Action != tea.MouseActionPress && !tea.MouseEvent(msg).IsWheel() {
+		return nil
+	}
+	if m.layout.menu.body.contains(msg.X, msg.Y) {
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			m.focus = focusNav
+			for idx, item := range m.layout.menuItems {
+				if item.contains(msg.X, msg.Y) {
+					m.navIndex = idx
+					m.switchScreen(screenByNavIndex(idx))
+					m.focus = focusContent
+					break
+				}
+			}
+		}
+		return nil
+	}
+	if m.layout.log.body.contains(msg.X, msg.Y) {
+		m.focus = focusLog
+		return m.logs.Update(msg)
+	}
+	if m.layout.page.body.contains(msg.X, msg.Y) {
+		if msg.Action == tea.MouseActionPress {
+			m.focus = focusContent
+		}
+		localX, localY := m.layout.page.body.local(msg.X, msg.Y)
+		return m.handleScreenMouse(msg, localX, localY, m.layout.page.body.width, m.layout.page.body.height)
+	}
+	return nil
+}
+
+func (m *appModel) handleScreenMouse(msg tea.MouseMsg, x, y, width, height int) tea.Cmd {
+	switch m.current {
+	case screenInstall:
+		return m.install.handleMouse(m, msg, x, y, width, height)
+	case screenUninstall:
+		return m.uninstall.handleMouse(m, msg, x, y, width, height)
+	case screenInstalled:
+		return m.installed.handleMouse(m, msg, x, y, width, height)
+	case screenSaves:
+		return m.saves.handleMouse(m, msg, x, y, width, height)
+	case screenSettings:
+		return m.settings.handleMouse(m, msg, x, y, width, height)
+	default:
+		return nil
+	}
+}
+
 func (m *appModel) showError(action string, err error) {
 	if err == nil {
 		return
@@ -427,23 +463,23 @@ func (m *appModel) showError(action string, err error) {
 	localizedAction := t(action)
 	localizedErr := m.localizeError(err)
 	m.logError("%s: %s", localizedAction, localizedErr)
-	m.showInfo(t("Error"), fmt.Sprintf("%s\n\n%s", localizedAction, localizedErr))
+	m.showInfo(t("Error"), localizedAction+"\n\n"+localizedErr)
 }
 
 func (m *appModel) logInfo(format string, args ...any) {
-	m.logs.Add("info", fmt.Sprintf(format, args...))
+	m.logs.Add("info", format, args...)
 }
 
 func (m *appModel) logSuccess(format string, args ...any) {
-	m.logs.Add("ok", fmt.Sprintf(format, args...))
+	m.logs.Add("ok", format, args...)
 }
 
 func (m *appModel) logWarn(format string, args ...any) {
-	m.logs.Add("warn", fmt.Sprintf(format, args...))
+	m.logs.Add("warn", format, args...)
 }
 
 func (m *appModel) logError(format string, args ...any) {
-	m.logs.Add("error", fmt.Sprintf(format, args...))
+	m.logs.Add("error", format, args...)
 }
 
 func screenName(screen string) string {
@@ -548,4 +584,31 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func joinColumns(left, right string, leftWidth, rightWidth int) string {
+	leftLines := strings.Split(left, "\n")
+	rightLines := strings.Split(right, "\n")
+	height := maxInt(len(leftLines), len(rightLines))
+	lines := make([]string, 0, height)
+	for i := 0; i < height; i++ {
+		leftLine := strings.Repeat(" ", leftWidth)
+		rightLine := strings.Repeat(" ", rightWidth)
+		if i < len(leftLines) {
+			leftLine = padVisual(leftLines[i], leftWidth)
+		}
+		if i < len(rightLines) {
+			rightLine = padVisual(rightLines[i], rightWidth)
+		}
+		lines = append(lines, leftLine+rightLine)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *appModel) absoluteMenuRects(local []rect) []rect {
+	items := make([]rect, 0, len(local))
+	for _, item := range local {
+		items = append(items, rect{x: m.layout.menu.body.x + item.x, y: m.layout.menu.body.y + item.y, width: item.width, height: item.height})
+	}
+	return items
 }
