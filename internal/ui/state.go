@@ -111,6 +111,18 @@ func (s *State) UninstallMods(names []string) ([]manager.UninstallResult, bool, 
 	return results, warn, nil
 }
 
+func (s *State) RepairAvailableMod(dirName string) (manager.ModRepairResult, error) {
+	return s.manager.RepairMod(filepath.Join(s.manager.ModsSource, dirName))
+}
+
+func (s *State) RepairInstalledMod(dirName string) (manager.ModRepairResult, error) {
+	dir, err := s.EnsureGameDir()
+	if err != nil {
+		return manager.ModRepairResult{}, err
+	}
+	return s.manager.RepairMod(filepath.Join(dir, "mods", dirName))
+}
+
 func (s *State) UninstallAllMods() (bool, error) {
 	dir, err := s.EnsureGameDir()
 	if err != nil {

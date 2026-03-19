@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -129,5 +130,87 @@ func TestSyncLocalModsPromotesNewerInstalledVersion(t *testing.T) {
 	}
 	if string(updatedManifest) != `{"pck_name":"SpeedX","version":"0.9.0"}` {
 		t.Fatalf("unexpected synced manifest: %q", string(updatedManifest))
+	}
+}
+
+func TestListAvailableModsMarksLegacyManifestForRepair(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+	m, err := New(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+
+	gameDir := filepath.Join(baseDir, "game")
+	if err := os.MkdirAll(filepath.Join(gameDir, "mods"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	modDir := filepath.Join(m.ModsSource, "LegacyDamage")
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "LegacyDamage.pck"), []byte("pck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "mod_manifest.json"), []byte(`{"pck_name":"LegacyDamage","name":"LegacyDamage","version":"1.0.0","author":"LegacyDamage"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mods, err := m.ListAvailableMods(gameDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mods) != 1 || !mods[0].NeedsRepair {
+		t.Fatalf("expected available mod to require repair, got %+v", mods)
+	}
+}
+
+func TestRepairModCreatesTargetJsonAndRemovesLegacyManifest(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+	m, err := New(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+
+	modDir := filepath.Join(baseDir, "LegacyDamage")
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.pck"), []byte("pck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "mod_manifest.json"), []byte(`{"version":"1.2.3"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := m.RepairMod(modDir)
+	if err != nil {
+		t.Fatalf("repair mod: %v", err)
+	}
+	if filepath.Base(result.ConfigPath) != "DamageMeter.json" {
+		t.Fatalf("expected repaired config path to use pck basename, got %q", result.ConfigPath)
+	}
+	if !result.RemovedLegacyManifest {
+		t.Fatal("expected legacy manifest to be removed")
+	}
+	if fileExists(filepath.Join(modDir, "mod_manifest.json")) {
+		t.Fatal("expected mod_manifest.json to be removed")
+	}
+	data, err := os.ReadFile(filepath.Join(modDir, "DamageMeter.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := map[string]any{}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest["id"] != "DamageMeter" || manifest["pck_name"] != "DamageMeter" || manifest["author"] != "DamageMeter" {
+		t.Fatalf("expected repaired config to normalize names, got %v", manifest)
+	}
+	if manifest["has_pck"] != true {
+		t.Fatalf("expected repaired config to set has_pck, got %v", manifest["has_pck"])
 	}
 }

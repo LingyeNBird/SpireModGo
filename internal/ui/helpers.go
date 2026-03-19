@@ -39,6 +39,10 @@ func renderModListLabel(mod manager.ModPackage, selected bool) string {
 	if selected {
 		checkbox = "[x]"
 	}
+	badge := ""
+	if mod.NeedsRepair {
+		badge = oldFormatBadgeStyle.Render("[?]") + " "
+	}
 	status := ""
 	switch {
 	case mod.Updatable:
@@ -46,7 +50,7 @@ func renderModListLabel(mod manager.ModPackage, selected bool) string {
 	case mod.Installed:
 		status = t(" (installed)")
 	}
-	return fmt.Sprintf("%s %s%s", checkbox, mod.Label, status)
+	return fmt.Sprintf("%s %s%s%s", checkbox, badge, mod.Label, status)
 }
 
 func renderInstalledModListLabel(mod manager.InstalledMod, selected bool) string {
@@ -54,7 +58,11 @@ func renderInstalledModListLabel(mod manager.InstalledMod, selected bool) string
 	if selected {
 		checkbox = "[x]"
 	}
-	return fmt.Sprintf("%s %s", checkbox, mod.Label)
+	badge := ""
+	if mod.NeedsRepair {
+		badge = oldFormatBadgeStyle.Render("[?]") + " "
+	}
+	return fmt.Sprintf("%s %s%s", checkbox, badge, mod.Label)
 }
 
 func renderAvailableModDetail(mod manager.ModPackage) string {
@@ -75,6 +83,9 @@ func renderAvailableModDetail(mod manager.ModPackage) string {
 		}
 	}
 	fmt.Fprintf(&builder, t("Status: %s\n"), status)
+	if mod.NeedsRepair {
+		builder.WriteString(t("Repair status: %s", t("Old format suspected")) + "\n")
+	}
 
 	if mod.Manifest == nil {
 		builder.WriteString("\n" + t("No mod_manifest.json detected. The install folder name is inferred from files.\n"))
@@ -101,6 +112,9 @@ func renderInstalledModDetail(mod manager.InstalledMod) string {
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "%s\n\n", mod.Label)
 	fmt.Fprintf(&builder, t("Install path: %s\n"), mod.FullPath)
+	if mod.NeedsRepair {
+		builder.WriteString(t("Repair status: %s", t("Old format suspected")) + "\n")
+	}
 
 	if mod.Manifest != nil {
 		builder.WriteString("\n" + t("Manifest") + "\n")

@@ -135,6 +135,53 @@ func TestRenderValueControlWithDetailShowsSecondaryLine(tt *testing.T) {
 	}
 }
 
+func TestRenderModListLabelPrefixesRepairBadge(tt *testing.T) {
+	label := renderModListLabel(manager.ModPackage{Label: "DamageMeter v1.0.0", NeedsRepair: true}, false)
+	if ansi.Strip(label) != "[ ] [?] DamageMeter v1.0.0" {
+		tt.Fatalf("expected repair badge in available label, got %q", label)
+	}
+	if !strings.Contains(label, oldFormatBadgeStyle.Render("[?]")) {
+		tt.Fatalf("expected available repair badge to use old-format badge style, got %q", label)
+	}
+	installed := renderInstalledModListLabel(manager.InstalledMod{Label: "DamageMeter v1.0.0", NeedsRepair: true}, true)
+	if ansi.Strip(installed) != "[x] [?] DamageMeter v1.0.0" {
+		tt.Fatalf("expected repair badge in installed label, got %q", installed)
+	}
+	if !strings.Contains(installed, oldFormatBadgeStyle.Render("[?]")) {
+		tt.Fatalf("expected installed repair badge to use old-format badge style, got %q", installed)
+	}
+}
+
+func TestRenderModDetailShowsRepairStatus(tt *testing.T) {
+	loadTestLocalizer(tt)
+	text := renderAvailableModDetail(manager.ModPackage{Label: "DamageMeter", InstallName: "DamageMeter", SourcePath: "C:/mods/DamageMeter", NeedsRepair: true})
+	if !strings.Contains(text, t("Repair status: %s", t("Old format suspected"))) {
+		tt.Fatalf("expected repair status in detail, got %q", text)
+	}
+}
+
+func TestModsScreenViewShowsRepairWarningAboveButton(tt *testing.T) {
+	loadTestLocalizer(tt)
+	screen := modsScreen{
+		tab: modsTabAvailable,
+		available: []manager.ModPackage{{
+			Label:       "DamageMeter",
+			InstallName: "DamageMeter",
+			SourcePath:  "C:/mods/DamageMeter",
+			NeedsRepair: true,
+		}},
+	}
+	app := &appModel{focus: focusContent}
+	view := screen.view(app, 120, 20)
+	warning := t("This mod format seems incompatible with the new Slay the Spire version. Click to repair.")
+	if !strings.Contains(view, errorStyle.Render(warning)) {
+		tt.Fatalf("expected repair warning to use error style, got %q", view)
+	}
+	if strings.Index(ansi.Strip(view), warning) > strings.Index(ansi.Strip(view), formatButtonLabel(t("Repair Mod"))) {
+		tt.Fatalf("expected repair warning above button, got %q", ansi.Strip(view))
+	}
+}
+
 func TestComputeLayoutStacksHelpBelowMenu(tt *testing.T) {
 	m := &appModel{width: 120, height: 40}
 	layout := m.computeLayout()
@@ -221,6 +268,7 @@ func TestNewTranslationKeysResolve(tt *testing.T) {
 		t("Save Actions"):             "存档操作",
 		t("Steam profiles: %d", 1):    "Steam 档案：1",
 		t("%d backups", 0):            "0个备份",
+		t("This mod format seems incompatible with the new Slay the Spire version. Click to repair."): "该模组格式似乎不兼容新版本杀戮尖塔，点击以修复。",
 	}
 	for got, want := range checks {
 		if got != want {

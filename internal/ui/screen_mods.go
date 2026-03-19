@@ -97,6 +97,8 @@ func (s *modsScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 		if s.tab == modsTabInstalled {
 			s.uninstallSelected(app)
 		}
+	case "f":
+		s.repairCurrent(app)
 	}
 	return nil
 }
@@ -108,6 +110,15 @@ func (s *modsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, h
 	leftWidth := maxInt(1, (width-3)/2)
 	layout := newSplitBodyLayout(width, height, leftWidth)
 	if !layout.leftBody.contains(x, y) {
+		if layout.rightBody.contains(x, y) {
+			localX := x - layout.rightBody.x
+			localY := y - layout.rightBody.y
+			if localY == 0 && s.currentNeedsRepair() {
+				if inlineButtonIndexAt([]string{t("Repair Mod")}, localX) == 0 {
+					s.repairCurrent(app)
+				}
+			}
+		}
 		return nil
 	}
 	localX := x - layout.leftBody.x
@@ -281,6 +292,9 @@ func (s *modsScreen) view(app *appModel, width, height int) string {
 		if len(s.available) > 0 {
 			detail = wrapBodyText(renderAvailableModDetail(s.available[s.availableCursor]), layout.rightBody.width)
 		}
+		if s.currentNeedsRepair() {
+			detail = strings.Join([]string{errorStyle.Render(t("This mod format seems incompatible with the new Slay the Spire version. Click to repair.")), renderInlineButton(t("Repair Mod"), false, false), "", detail}, "\n")
+		}
 		leftBody := strings.Join([]string{tabLine, "", actionLine, renderList(items, s.availableCursor, app.focus == focusContent)}, "\n")
 		return renderSplitBody(t("Mod Management"), leftBody, t("Mod Details"), detail, width, height, leftWidth)
 	}
@@ -295,8 +309,51 @@ func (s *modsScreen) view(app *appModel, width, height int) string {
 	if s.installedErr == "" && len(s.installed) > 0 {
 		detail = wrapBodyText(renderInstalledModDetail(s.installed[s.installedCursor]), layout.rightBody.width)
 	}
+	if s.currentNeedsRepair() {
+		detail = strings.Join([]string{errorStyle.Render(t("This mod format seems incompatible with the new Slay the Spire version. Click to repair.")), renderInlineButton(t("Repair Mod"), false, false), "", detail}, "\n")
+	}
 	leftBody := strings.Join([]string{tabLine, "", actionLine, renderList(items, s.installedCursor, app.focus == focusContent)}, "\n")
 	return renderSplitBody(t("Mod Management"), leftBody, t("Mod Details"), detail, width, height, leftWidth)
+}
+
+func (s *modsScreen) currentNeedsRepair() bool {
+	if s.tab == modsTabAvailable {
+		return len(s.available) > 0 && s.available[s.availableCursor].NeedsRepair
+	}
+	return len(s.installed) > 0 && s.installed[s.installedCursor].NeedsRepair
+}
+
+func (s *modsScreen) repairCurrent(app *appModel) {
+	if !s.currentNeedsRepair() {
+		return
+	}
+	if s.tab == modsTabAvailable {
+		mod := s.available[s.availableCursor]
+		result, err := app.state.RepairAvailableMod(mod.DirName)
+		if err != nil {
+			app.showError("Repair mod failed", err)
+			return
+		}
+		app.logSuccess("Repaired mod config for %s", mod.Label)
+		app.logInfo("Generated config: %s", result.ConfigPath)
+		if result.RemovedLegacyManifest {
+			app.logInfo("Removed legacy mod_manifest.json")
+		}
+		s.refresh(app)
+		return
+	}
+	mod := s.installed[s.installedCursor]
+	result, err := app.state.RepairInstalledMod(mod.DirName)
+	if err != nil {
+		app.showError("Repair mod failed", err)
+		return
+	}
+	app.logSuccess("Repaired mod config for %s", mod.Label)
+	app.logInfo("Generated config: %s", result.ConfigPath)
+	if result.RemovedLegacyManifest {
+		app.logInfo("Removed legacy mod_manifest.json")
+	}
+	s.refresh(app)
 }
 
 func (s *modsScreen) actionLabels() []string {

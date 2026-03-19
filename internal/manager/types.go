@@ -20,10 +20,16 @@ type Config struct {
 }
 
 type ModManifest struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Author  string `json:"author"`
-	PckName string `json:"pck_name"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	AffectsGameplay bool     `json:"affects_gameplay"`
+	HasPck          bool     `json:"has_pck"`
+	Version         string   `json:"version"`
+	Description     string   `json:"description"`
+	Author          string   `json:"author"`
+	PckName         string   `json:"pck_name"`
+	HasDll          bool     `json:"has_dll"`
+	Dependencies    []string `json:"dependencies"`
 }
 
 type ModPackage struct {
@@ -32,16 +38,25 @@ type ModPackage struct {
 	InstallName      string
 	Label            string
 	Manifest         *ModManifest
+	NeedsRepair      bool
+	RepairHint       string
 	Installed        bool
 	InstalledVersion string
 	Updatable        bool
 }
 
 type InstalledMod struct {
-	DirName  string
-	FullPath string
-	Manifest *ModManifest
-	Label    string
+	DirName     string
+	FullPath    string
+	Manifest    *ModManifest
+	Label       string
+	NeedsRepair bool
+	RepairHint  string
+}
+
+type ModRepairResult struct {
+	ConfigPath            string
+	RemovedLegacyManifest bool
 }
 
 type InstallFileResult struct {

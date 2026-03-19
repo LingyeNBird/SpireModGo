@@ -26,6 +26,7 @@ var (
 	okStyle              = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
 	warnStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color("221"))
 	errorStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	oldFormatBadgeStyle  = errorStyle
 	navItemStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	navActiveStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230"))
 	navFocusStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("31"))

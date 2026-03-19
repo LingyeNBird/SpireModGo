@@ -2,6 +2,7 @@ package manager
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,25 @@ import (
 	"strconv"
 	"strings"
 )
+
+var errRepairAmbiguousLayout = errors.New("mod folder has multiple .pck or .dll files")
+
+type modRepairLayout struct {
+	FolderName     string
+	ModDir         string
+	BaseName       string
+	TargetJSONPath string
+	LegacyJSONPath string
+	HasPck         bool
+	HasDll         bool
+	PckCount       int
+	DllCount       int
+	TargetExists   bool
+	LegacyExists   bool
+	ConfigPath     string
+	Config         *ModManifest
+	ConfigParseErr error
+}
 
 type UninstallResult struct {
 	Name string
@@ -40,6 +60,7 @@ func (m *Manager) ListAvailableMods(gameDir string) ([]ModPackage, error) {
 		fullPath := filepath.Join(m.ModsSource, entry.Name())
 		manifest, _ := readManifest(fullPath)
 		installName := getInstallName(fullPath, manifest)
+		needsRepair, repairHint := inspectModRepairNeed(fullPath, manifest)
 		label := formatModLabel(entry.Name(), manifest, installName)
 		mod := ModPackage{
 			DirName:     entry.Name(),
@@ -47,6 +68,8 @@ func (m *Manager) ListAvailableMods(gameDir string) ([]ModPackage, error) {
 			InstallName: installName,
 			Label:       label,
 			Manifest:    manifest,
+			NeedsRepair: needsRepair,
+			RepairHint:  repairHint,
 		}
 		if installedMod, ok := installedMap[installName]; ok {
 			mod.Installed = true
@@ -81,11 +104,14 @@ func (m *Manager) ListInstalledMods(gameDir string) ([]InstalledMod, error) {
 		}
 		fullPath := filepath.Join(modsDir, entry.Name())
 		manifest, _ := readManifest(fullPath)
+		needsRepair, repairHint := inspectModRepairNeed(fullPath, manifest)
 		mods = append(mods, InstalledMod{
-			DirName:  entry.Name(),
-			FullPath: fullPath,
-			Manifest: manifest,
-			Label:    formatModLabel(entry.Name(), manifest, getInstallName(fullPath, manifest)),
+			DirName:     entry.Name(),
+			FullPath:    fullPath,
+			Manifest:    manifest,
+			Label:       formatModLabel(entry.Name(), manifest, getInstallName(fullPath, manifest)),
+			NeedsRepair: needsRepair,
+			RepairHint:  repairHint,
 		})
 	}
 	sort.Slice(mods, func(i, j int) bool {
@@ -95,7 +121,10 @@ func (m *Manager) ListInstalledMods(gameDir string) ([]InstalledMod, error) {
 }
 
 func readManifest(modDir string) (*ModManifest, error) {
-	manifestPath := filepath.Join(modDir, "mod_manifest.json")
+	manifestPath := findManifestPath(modDir)
+	if manifestPath == "" {
+		return nil, os.ErrNotExist
+	}
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return nil, err
@@ -106,6 +135,17 @@ func readManifest(modDir string) (*ModManifest, error) {
 		return nil, err
 	}
 	return &manifest, nil
+}
+
+func findManifestPath(modDir string) string {
+	layout := inspectModRepairLayout(modDir)
+	if layout.TargetExists {
+		return layout.TargetJSONPath
+	}
+	if layout.LegacyExists {
+		return layout.LegacyJSONPath
+	}
+	return ""
 }
 
 func getInstallName(modDir string, manifest *ModManifest) string {
@@ -185,6 +225,63 @@ func (m *Manager) InstallMods(gameDir string, mods []ModPackage) ([]InstallResul
 		results = append(results, result)
 	}
 	return results, nil
+}
+
+func (m *Manager) RepairMod(modDir string) (ModRepairResult, error) {
+	layout := inspectModRepairLayout(modDir)
+	if layout.PckCount > 1 || layout.DllCount > 1 {
+		return ModRepairResult{}, errRepairAmbiguousLayout
+	}
+	defaults := map[string]any{
+		"id":               layout.BaseName,
+		"name":             layout.BaseName,
+		"affects_gameplay": false,
+		"has_pck":          layout.HasPck,
+		"version":          "0.0.1",
+		"description":      "这是通过脚本自动生成的临时配置文件，如果mod更新请使用mod作者提供的新文件",
+		"author":           layout.BaseName,
+		"pck_name":         layout.BaseName,
+		"has_dll":          layout.HasDll,
+		"dependencies":     []any{},
+	}
+	config := map[string]any{}
+	if layout.ConfigPath != "" {
+		data, err := os.ReadFile(layout.ConfigPath)
+		if err != nil {
+			return ModRepairResult{}, err
+		}
+		if err := json.Unmarshal(stripUTF8BOM(data), &config); err != nil {
+			return ModRepairResult{}, err
+		}
+	}
+	for key, value := range defaults {
+		if _, ok := config[key]; !ok {
+			config[key] = value
+		}
+	}
+	config["id"] = layout.BaseName
+	config["name"] = layout.BaseName
+	config["author"] = layout.BaseName
+	config["pck_name"] = layout.BaseName
+	config["has_pck"] = layout.HasPck
+	config["has_dll"] = layout.HasDll
+	if _, ok := config["dependencies"]; !ok {
+		config["dependencies"] = []any{}
+	}
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return ModRepairResult{}, err
+	}
+	if err := os.WriteFile(layout.TargetJSONPath, data, 0o644); err != nil {
+		return ModRepairResult{}, err
+	}
+	removedLegacy := false
+	if layout.LegacyExists && !sameFilePath(layout.LegacyJSONPath, layout.TargetJSONPath) {
+		if err := os.Remove(layout.LegacyJSONPath); err == nil || os.IsNotExist(err) {
+			removedLegacy = true
+		}
+	}
+	return ModRepairResult{ConfigPath: layout.TargetJSONPath, RemovedLegacyManifest: removedLegacy}, nil
 }
 
 func (m *Manager) UninstallMods(gameDir string, names []string) ([]UninstallResult, error) {
@@ -334,6 +431,81 @@ func compareVersionStrings(left, right string) int {
 		}
 	}
 	return strings.Compare(left, right)
+}
+
+func inspectModRepairNeed(modDir string, manifest *ModManifest) (bool, string) {
+	layout := inspectModRepairLayout(modDir)
+	if layout.PckCount > 1 || layout.DllCount > 1 {
+		return false, ""
+	}
+	if layout.LegacyExists && !sameFilePath(layout.LegacyJSONPath, layout.TargetJSONPath) {
+		return true, "legacy_manifest"
+	}
+	if !layout.TargetExists {
+		return true, "missing_target_json"
+	}
+	if manifest == nil {
+		return false, ""
+	}
+	if stringsTrimSpace(manifest.ID) != layout.BaseName || stringsTrimSpace(manifest.Name) != layout.BaseName || stringsTrimSpace(manifest.Author) != layout.BaseName || stringsTrimSpace(manifest.PckName) != layout.BaseName {
+		return true, "metadata_mismatch"
+	}
+	if manifest.HasPck != layout.HasPck || manifest.HasDll != layout.HasDll {
+		return true, "asset_flag_mismatch"
+	}
+	if manifest.Dependencies == nil {
+		return true, "missing_dependencies"
+	}
+	return false, ""
+}
+
+func inspectModRepairLayout(modDir string) modRepairLayout {
+	folderName := filepath.Base(modDir)
+	entries, _ := os.ReadDir(modDir)
+	pckNames := make([]string, 0)
+	dllCount := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		switch strings.ToLower(filepath.Ext(entry.Name())) {
+		case ".pck":
+			pckNames = append(pckNames, entry.Name())
+		case ".dll":
+			dllCount++
+		}
+	}
+	baseName := folderName
+	if len(pckNames) == 1 {
+		baseName = strings.TrimSuffix(pckNames[0], filepath.Ext(pckNames[0]))
+	}
+	target := filepath.Join(modDir, baseName+".json")
+	legacy := filepath.Join(modDir, "mod_manifest.json")
+	configPath := ""
+	switch {
+	case fileExists(target):
+		configPath = target
+	case fileExists(legacy):
+		configPath = legacy
+	}
+	return modRepairLayout{
+		FolderName:     folderName,
+		ModDir:         modDir,
+		BaseName:       baseName,
+		TargetJSONPath: target,
+		LegacyJSONPath: legacy,
+		HasPck:         len(pckNames) == 1,
+		HasDll:         dllCount == 1,
+		PckCount:       len(pckNames),
+		DllCount:       dllCount,
+		TargetExists:   fileExists(target),
+		LegacyExists:   fileExists(legacy),
+		ConfigPath:     configPath,
+	}
+}
+
+func sameFilePath(left, right string) bool {
+	return filepath.Clean(left) == filepath.Clean(right)
 }
 
 func removePathWithRetry(path string) error {
