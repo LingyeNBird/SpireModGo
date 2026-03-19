@@ -56,20 +56,22 @@ type splitBodyLayout struct {
 }
 
 func newSplitBodyLayout(width, height, leftWidth int) splitBodyLayout {
-	if width < 3 {
-		width = 3
+	if width < 5 {
+		width = 5
 	}
-	if height < 1 {
-		height = 1
+	if height < 3 {
+		height = 3
 	}
-	leftWidth = clampInt(leftWidth, 1, maxInt(1, width-2))
-	rightWidth := maxInt(1, width-leftWidth-1)
-	leftWidth = maxInt(1, width-rightWidth-1)
+	bodyWidth := maxInt(2, width-3)
+	bodyHeight := maxInt(1, height-2)
+	leftWidth = clampInt(leftWidth, 1, maxInt(1, bodyWidth-1))
+	rightWidth := maxInt(1, bodyWidth-leftWidth)
+	leftWidth = maxInt(1, bodyWidth-rightWidth)
 	return splitBodyLayout{
-		leftHeader:  rect{x: 0, y: 0, width: leftWidth, height: 1},
-		rightHeader: rect{x: leftWidth + 1, y: 0, width: rightWidth, height: 1},
-		leftBody:    rect{x: 0, y: 1, width: leftWidth, height: maxInt(0, height-1)},
-		rightBody:   rect{x: leftWidth + 1, y: 1, width: rightWidth, height: maxInt(0, height-1)},
+		leftHeader:  rect{x: 1, y: 0, width: leftWidth, height: 1},
+		rightHeader: rect{x: leftWidth + 2, y: 0, width: rightWidth, height: 1},
+		leftBody:    rect{x: 1, y: 1, width: leftWidth, height: bodyHeight},
+		rightBody:   rect{x: leftWidth + 2, y: 1, width: rightWidth, height: bodyHeight},
 	}
 }
 
@@ -87,12 +89,15 @@ func renderPanel(title, body string, width, height int) string {
 }
 
 func renderSplitBody(leftTitle, leftBody, rightTitle, rightBody string, width, height, leftWidth int) string {
+	return renderSplitPanel(leftTitle, leftBody, rightTitle, rightBody, width, height, leftWidth)
+}
+
+func renderSplitPanel(leftTitle, leftBody, rightTitle, rightBody string, width, height, leftWidth int) string {
 	layout := newSplitBodyLayout(width, height, leftWidth)
 	leftLines := normalizeLines(leftBody, layout.leftBody.width, layout.leftBody.height)
 	rightLines := normalizeLines(rightBody, layout.rightBody.width, layout.rightBody.height)
-	lines := make([]string, 0, maxInt(1, height))
-	header := titleRowStyle.Render(padVisual(leftTitle, layout.leftHeader.width)) + borderStyle.Render("│") + titleRowStyle.Render(padVisual(rightTitle, layout.rightHeader.width))
-	lines = append(lines, header)
+	lines := make([]string, 0, maxInt(3, height))
+	lines = append(lines, makeSplitTopBorder(leftTitle, rightTitle, layout.leftBody.width, layout.rightBody.width))
 	for i := 0; i < maxInt(len(leftLines), len(rightLines)); i++ {
 		leftLine := ""
 		rightLine := ""
@@ -102,9 +107,39 @@ func renderSplitBody(leftTitle, leftBody, rightTitle, rightBody string, width, h
 		if i < len(rightLines) {
 			rightLine = rightLines[i]
 		}
-		lines = append(lines, panelBodyStyle.Render(leftLine)+borderStyle.Render("│")+panelBodyStyle.Render(rightLine))
+		lines = append(lines, borderStyle.Render("│")+panelBodyStyle.Render(leftLine)+borderStyle.Render("│")+panelBodyStyle.Render(rightLine)+borderStyle.Render("│"))
 	}
+	lines = append(lines, borderStyle.Render("╰"+strings.Repeat("─", layout.leftBody.width)+"┴"+strings.Repeat("─", layout.rightBody.width)+"╯"))
 	return strings.Join(lines, "\n")
+}
+
+func renderBorderButtonRow(labels []string, width int, active int) string {
+	segments := make([]string, 0, len(labels))
+	for idx, label := range labels {
+		segment := "|" + label + "|"
+		if idx == active {
+			segment = titleStyle.Render(segment)
+		} else {
+			segment = mutedStyle.Render(segment)
+		}
+		segments = append(segments, segment)
+	}
+	bodyWidth := maxInt(1, width-2)
+	line := "╰"
+	used := 1
+	for idx, segment := range segments {
+		prefix := "─"
+		if idx == 0 {
+			prefix = "───"
+		}
+		line += prefix + segment
+		used += lipgloss.Width(prefix) + lipgloss.Width(segment)
+	}
+	if bodyWidth+1-used > 0 {
+		line += strings.Repeat("─", bodyWidth+1-used)
+	}
+	line += "╯"
+	return borderStyle.Render(line)
 }
 
 func renderMenuBody(items []string, cursor, width, height int, focused bool) (string, []rect) {
@@ -172,6 +207,25 @@ func makeTopBorder(title string, width int) string {
 		remaining = maxInt(0, width-lipgloss.Width(prefix)-lipgloss.Width(segment)-lipgloss.Width(suffix))
 	}
 	return prefix + titleStyle.Render(segment) + strings.Repeat("─", remaining) + suffix
+}
+
+func makeSplitTopBorder(leftTitle, rightTitle string, leftWidth, rightWidth int) string {
+	leftSpan := makeTitledBorderSpan(leftTitle, leftWidth, 1)
+	rightSpan := makeTitledBorderSpan(rightTitle, rightWidth, 3)
+	return borderStyle.Render("╭") + leftSpan + borderStyle.Render("┬") + rightSpan + borderStyle.Render("╮")
+}
+
+func makeTitledBorderSpan(title string, width, leadingDashes int) string {
+	width = maxInt(1, width)
+	leading := minInt(leadingDashes, maxInt(0, width-3))
+	maxTitleWidth := maxInt(1, width-leading-2)
+	segment := "|" + ansi.Truncate(title, maxTitleWidth, "") + "|"
+	segmentWidth := lipgloss.Width(segment)
+	if leading+segmentWidth > width {
+		leading = maxInt(0, width-segmentWidth)
+	}
+	trailing := maxInt(0, width-leading-segmentWidth)
+	return borderStyle.Render(strings.Repeat("─", leading)) + titleStyle.Render(segment) + borderStyle.Render(strings.Repeat("─", trailing))
 }
 
 func padVisual(text string, width int) string {

@@ -9,12 +9,10 @@ import (
 )
 
 const (
-	screenHome      = "home"
-	screenInstall   = "install"
-	screenUninstall = "uninstall"
-	screenInstalled = "installed"
-	screenSaves     = "saves"
-	screenSettings  = "settings"
+	screenHome     = "home"
+	screenMods     = "mods"
+	screenSaves    = "saves"
+	screenSettings = "settings"
 )
 
 type focusZone int
@@ -30,22 +28,20 @@ type App struct {
 }
 
 type appModel struct {
-	manager   *manager.Manager
-	state     *State
-	width     int
-	height    int
-	current   string
-	navIndex  int
-	focus     focusZone
-	modal     modalState
-	layout    shellLayout
-	logs      logModel
-	home      homeScreen
-	install   installScreen
-	uninstall uninstallScreen
-	installed installedScreen
-	saves     savesScreen
-	settings  settingsScreen
+	manager  *manager.Manager
+	state    *State
+	width    int
+	height   int
+	current  string
+	navIndex int
+	focus    focusZone
+	modal    modalState
+	layout   shellLayout
+	logs     logModel
+	home     homeScreen
+	mods     modsScreen
+	saves    savesScreen
+	settings settingsScreen
 }
 
 func NewApp(mgr *manager.Manager) *App {
@@ -125,7 +121,7 @@ func (m *appModel) View() string {
 	menuBody, menuItems := m.renderSidebar(m.layout.menu.body.width, m.layout.menu.body.height)
 	m.layout.menuItems = m.absoluteMenuRects(menuItems)
 	menu := renderPanel(t("Menu"), menuBody, m.layout.menu.frame.width, m.layout.menu.frame.height)
-	content := renderPanel(screenName(m.current), m.renderCurrentScreen(m.layout.page.body.width, m.layout.page.body.height), m.layout.page.frame.width, m.layout.page.frame.height)
+	content := m.renderCurrentScreen(m.layout.page.frame.width, m.layout.page.frame.height)
 	activity := renderPanel(t("Activity Log"), m.logs.View(), m.layout.log.frame.width, m.layout.log.frame.height)
 	help := renderPanel(t("Help"), m.renderHelp(), m.layout.help.frame.width, m.layout.help.frame.height)
 	right := strings.Join([]string{content, activity}, "\n")
@@ -189,14 +185,10 @@ func (m *appModel) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 	case "1":
 		m.switchScreen(screenHome)
 	case "2":
-		m.switchScreen(screenInstall)
+		m.switchScreen(screenMods)
 	case "3":
-		m.switchScreen(screenUninstall)
-	case "4":
-		m.switchScreen(screenInstalled)
-	case "5":
 		m.switchScreen(screenSaves)
-	case "6":
+	case "4":
 		m.switchScreen(screenSettings)
 	}
 	return nil
@@ -228,7 +220,7 @@ func (m *appModel) handleNavKey(msg tea.KeyMsg) {
 			m.navIndex--
 		}
 	case "down", "j":
-		if m.navIndex < 5 {
+		if m.navIndex < 3 {
 			m.navIndex++
 		}
 	case "enter", "right", "l":
@@ -243,12 +235,8 @@ func (m *appModel) handleLogKey(msg tea.KeyMsg) tea.Cmd {
 
 func (m *appModel) handleScreenKey(msg tea.KeyMsg) tea.Cmd {
 	switch m.current {
-	case screenInstall:
-		return m.install.handleKey(m, msg)
-	case screenUninstall:
-		return m.uninstall.handleKey(m, msg)
-	case screenInstalled:
-		return m.installed.handleKey(m, msg)
+	case screenMods:
+		return m.mods.handleKey(m, msg)
 	case screenSaves:
 		return m.saves.handleKey(m, msg)
 	case screenSettings:
@@ -266,12 +254,8 @@ func (m *appModel) switchScreen(screen string) {
 
 func (m *appModel) refreshCurrentScreen() {
 	switch m.current {
-	case screenInstall:
-		m.install.refresh(m)
-	case screenUninstall:
-		m.uninstall.refresh(m)
-	case screenInstalled:
-		m.installed.refresh(m)
+	case screenMods:
+		m.mods.refresh(m)
 	case screenSaves:
 		m.saves.refresh(m)
 	case screenSettings:
@@ -284,9 +268,7 @@ func (m *appModel) refreshCurrentScreen() {
 func (m *appModel) renderSidebar(width, height int) (string, []rect) {
 	items := []string{
 		t("Main Menu"),
-		t("Install Mods"),
-		t("Uninstall Mods"),
-		t("Installed Mods"),
+		t("Mod Management"),
 		t("Save Management"),
 		t("Settings"),
 	}
@@ -295,12 +277,8 @@ func (m *appModel) renderSidebar(width, height int) (string, []rect) {
 
 func (m *appModel) renderCurrentScreen(width, height int) string {
 	switch m.current {
-	case screenInstall:
-		return m.install.view(m, width, height)
-	case screenUninstall:
-		return m.uninstall.view(m, width, height)
-	case screenInstalled:
-		return m.installed.view(m, width, height)
+	case screenMods:
+		return m.mods.view(m, width, height)
 	case screenSaves:
 		return m.saves.view(m, width, height)
 	case screenSettings:
@@ -314,12 +292,8 @@ func (m *appModel) renderHelp() string {
 	common := t("Global: click menu | click actions | Tab cycle panes | Esc return menu | Ctrl+L toggle language | F5 refresh | q quit")
 	screenHelp := ""
 	switch m.current {
-	case screenInstall:
-		screenHelp = m.install.help()
-	case screenUninstall:
-		screenHelp = m.uninstall.help()
-	case screenInstalled:
-		screenHelp = m.installed.help()
+	case screenMods:
+		screenHelp = m.mods.help()
 	case screenSaves:
 		screenHelp = m.saves.help()
 	case screenSettings:
@@ -366,17 +340,51 @@ func (m *appModel) computeLayout() shellLayout {
 }
 
 func (m *appModel) showInfo(title, body string) {
-	m.modal = modalState{open: true, title: t(title), body: t(body)}
+	m.modal = modalState{open: true, title: t(title), body: t(body), kind: modalKindInfo}
 }
 
 func (m *appModel) showConfirm(title, body string, onConfirm func(*appModel)) {
-	m.modal = modalState{open: true, title: t(title), body: t(body), confirm: true, onConfirm: onConfirm}
+	m.modal = modalState{open: true, title: t(title), body: t(body), kind: modalKindConfirm, onConfirm: onConfirm}
+}
+
+func (m *appModel) showCopyTargetModal(title string, options []copyTargetOption, onPick func(*appModel, copyTargetOption, bool)) {
+	cursor := 0
+	for idx, option := range options {
+		if !option.Header {
+			cursor = idx
+			break
+		}
+	}
+	m.modal = modalState{open: true, title: t(title), kind: modalKindCopyTarget, copyOptions: options, optionCursor: cursor, onPickCopy: onPick}
 }
 
 func (m *appModel) handleModalKey(msg tea.KeyMsg) tea.Cmd {
+	if m.modal.kind == modalKindCopyTarget {
+		switch msg.String() {
+		case "up", "k":
+			m.modal.optionCursor = moveModalOption(m.modal.copyOptions, m.modal.optionCursor, -1)
+		case "down", "j":
+			m.modal.optionCursor = moveModalOption(m.modal.copyOptions, m.modal.optionCursor, 1)
+		case "left", "h":
+			if m.modal.actionCursor > 0 {
+				m.modal.actionCursor--
+			}
+		case "right", "l", "tab":
+			if m.modal.actionCursor < 2 {
+				m.modal.actionCursor++
+			} else {
+				m.modal.actionCursor = 0
+			}
+		case "enter":
+			return m.executeCopyModalAction()
+		case "esc", "q":
+			m.modal = modalState{}
+		}
+		return nil
+	}
 	switch msg.String() {
 	case "enter", "y":
-		confirm := m.modal.confirm
+		confirm := m.modal.kind == modalKindConfirm
 		handler := m.modal.onConfirm
 		m.modal = modalState{}
 		if confirm && handler != nil {
@@ -393,18 +401,82 @@ func (m *appModel) handleModalMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	layout := modalLayout(m.width, m.height, m.modal)
-	if layout.confirmButton.contains(msg.X, msg.Y) && m.modal.confirm {
+	if m.modal.kind == modalKindCopyTarget {
+		for idx, optionRect := range layout.optionRects {
+			if optionRect.contains(msg.X, msg.Y) {
+				m.modal.optionCursor = moveModalOption(m.modal.copyOptions, layout.optionIndexes[idx], 0)
+				return nil
+			}
+		}
+		if layout.primaryButton.contains(msg.X, msg.Y) {
+			m.modal.actionCursor = 0
+			return m.executeCopyModalAction()
+		}
+		if layout.secondaryButton.contains(msg.X, msg.Y) {
+			m.modal.actionCursor = 1
+			return m.executeCopyModalAction()
+		}
+		if layout.cancelButton.contains(msg.X, msg.Y) {
+			m.modal = modalState{}
+		}
+		return nil
+	}
+	if layout.primaryButton.contains(msg.X, msg.Y) {
 		handler := m.modal.onConfirm
+		confirm := m.modal.kind == modalKindConfirm
 		m.modal = modalState{}
-		if handler != nil {
+		if confirm && handler != nil {
 			handler(m)
 		}
 		return nil
 	}
-	if layout.closeButton.contains(msg.X, msg.Y) {
+	if layout.cancelButton.contains(msg.X, msg.Y) {
 		m.modal = modalState{}
 	}
 	return nil
+}
+
+func (m *appModel) executeCopyModalAction() tea.Cmd {
+	if len(m.modal.copyOptions) == 0 || m.modal.optionCursor >= len(m.modal.copyOptions) {
+		m.modal = modalState{}
+		return nil
+	}
+	if m.modal.actionCursor == 2 {
+		m.modal = modalState{}
+		return nil
+	}
+	option := m.modal.copyOptions[m.modal.optionCursor]
+	if option.Header {
+		m.modal.optionCursor = moveModalOption(m.modal.copyOptions, m.modal.optionCursor, 1)
+		return nil
+	}
+	pick := m.modal.onPickCopy
+	backupCopy := m.modal.actionCursor == 1
+	m.modal = modalState{}
+	if pick != nil {
+		pick(m, option, backupCopy)
+	}
+	return nil
+}
+
+func moveModalOption(options []copyTargetOption, start, delta int) int {
+	if len(options) == 0 {
+		return 0
+	}
+	if delta == 0 {
+		if start >= 0 && start < len(options) && !options[start].Header {
+			return start
+		}
+		delta = 1
+	}
+	idx := start
+	for range len(options) {
+		idx = (idx + delta + len(options)) % len(options)
+		if !options[idx].Header {
+			return idx
+		}
+	}
+	return start
 }
 
 func (m *appModel) handleMouse(msg tea.MouseMsg) tea.Cmd {
@@ -429,24 +501,20 @@ func (m *appModel) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		m.focus = focusLog
 		return m.logs.Update(msg)
 	}
-	if m.layout.page.body.contains(msg.X, msg.Y) {
+	if m.layout.page.frame.contains(msg.X, msg.Y) {
 		if msg.Action == tea.MouseActionPress {
 			m.focus = focusContent
 		}
-		localX, localY := m.layout.page.body.local(msg.X, msg.Y)
-		return m.handleScreenMouse(msg, localX, localY, m.layout.page.body.width, m.layout.page.body.height)
+		localX, localY := m.layout.page.frame.local(msg.X, msg.Y)
+		return m.handleScreenMouse(msg, localX, localY, m.layout.page.frame.width, m.layout.page.frame.height)
 	}
 	return nil
 }
 
 func (m *appModel) handleScreenMouse(msg tea.MouseMsg, x, y, width, height int) tea.Cmd {
 	switch m.current {
-	case screenInstall:
-		return m.install.handleMouse(m, msg, x, y, width, height)
-	case screenUninstall:
-		return m.uninstall.handleMouse(m, msg, x, y, width, height)
-	case screenInstalled:
-		return m.installed.handleMouse(m, msg, x, y, width, height)
+	case screenMods:
+		return m.mods.handleMouse(m, msg, x, y, width, height)
 	case screenSaves:
 		return m.saves.handleMouse(m, msg, x, y, width, height)
 	case screenSettings:
@@ -484,12 +552,8 @@ func (m *appModel) logError(format string, args ...any) {
 
 func screenName(screen string) string {
 	switch screen {
-	case screenInstall:
-		return t("Install Mods")
-	case screenUninstall:
-		return t("Uninstall Mods")
-	case screenInstalled:
-		return t("Installed Mods")
+	case screenMods:
+		return t("Mod Management")
 	case screenSaves:
 		return t("Save Management")
 	case screenSettings:
@@ -501,9 +565,7 @@ func screenName(screen string) string {
 
 func (m *appModel) refreshAllLocalizedState() {
 	m.home.refresh(m)
-	m.install.refresh(m)
-	m.uninstall.refresh(m)
-	m.installed.refresh(m)
+	m.mods.refresh(m)
 	m.saves.refresh(m)
 	m.settings.refresh(m)
 	m.logs.sync()
@@ -531,14 +593,10 @@ func localeDisplayName(locale string) string {
 func screenByNavIndex(index int) string {
 	switch index {
 	case 1:
-		return screenInstall
+		return screenMods
 	case 2:
-		return screenUninstall
-	case 3:
-		return screenInstalled
-	case 4:
 		return screenSaves
-	case 5:
+	case 3:
 		return screenSettings
 	default:
 		return screenHome
@@ -547,16 +605,12 @@ func screenByNavIndex(index int) string {
 
 func navIndexByScreen(screen string) int {
 	switch screen {
-	case screenInstall:
+	case screenMods:
 		return 1
-	case screenUninstall:
-		return 2
-	case screenInstalled:
-		return 3
 	case screenSaves:
-		return 4
+		return 2
 	case screenSettings:
-		return 5
+		return 3
 	default:
 		return 0
 	}

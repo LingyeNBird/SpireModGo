@@ -1,13 +1,12 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 )
 
 type homeScreen struct {
-	summary string
-	notes   string
+	overview string
+	guide    string
 }
 
 func (s *homeScreen) refresh(app *appModel) {
@@ -16,7 +15,7 @@ func (s *homeScreen) refresh(app *appModel) {
 	installedState := t("Game directory is not configured yet. Open Settings before install or uninstall actions.")
 	if installedMods, err := app.state.ListInstalledMods(); err == nil {
 		installedCount = len(installedMods)
-		installedState = fmt.Sprintf("%d installed mod folder(s).", installedCount)
+		installedState = t("%d installed mod folder(s).", installedCount)
 	} else {
 		installedState = app.localizeError(err)
 	}
@@ -35,15 +34,15 @@ func (s *homeScreen) refresh(app *appModel) {
 	} else {
 		summaryText.WriteString(t("Game directory: %s\n", app.state.GameDir()))
 	}
-	summaryText.WriteString(t("Mod source: %s\n", app.manager.ModsSource))
-	summaryText.WriteString(t("Save root: %s\n\n", app.manager.SaveRoot))
+	summaryText.WriteString(t("Mod directory: %s\n", app.manager.ModsSource))
+	summaryText.WriteString(t("Save root: %s\n", app.manager.SaveRoot))
+	summaryText.WriteString(t("Installed mods: %s\n", installedState))
 
 	if availableErr != nil {
 		summaryText.WriteString(t("Available packages: %s\n", app.localizeError(availableErr)))
 	} else {
 		summaryText.WriteString(t("Available packages: %d\n", len(availableMods)))
 	}
-	summaryText.WriteString(t("Installed mods: %s\n", installedState))
 
 	if steamErr != nil {
 		summaryText.WriteString(t("Steam profiles: %s\n", app.localizeError(steamErr)))
@@ -54,17 +53,14 @@ func (s *homeScreen) refresh(app *appModel) {
 			summaryText.WriteString(t("Available backups: %d\n", backupCount))
 		}
 	}
-	s.summary = summaryText.String()
-	s.notes = strings.Join([]string{
-		t("What This Build Includes"),
+	s.overview = summaryText.String()
+	s.guide = strings.Join([]string{
+		t("This build focuses on local mod, save, and settings workflows."),
 		"",
-		t("- Install mods from the bundled Mods packages."),
-		t("- Uninstall selected mod folders or wipe the whole mods directory."),
-		t("- Inspect installed mod manifests and copied files."),
-		t("- Copy saves between vanilla and modded slots, plus backup and restore."),
-		t("- Manage local settings, game-path detection, and .bak cleanup."),
-		"",
-		t("Notes"),
+		t("- Mod Management combines install, uninstall, and detail inspection."),
+		t("- Save Management shows vanilla and modded slots together."),
+		t("- Copy saves now picks the destination slot in a dedicated popup."),
+		t("- Settings still manages game-path detection and .bak cleanup."),
 		"",
 		t("- Destructive actions always ask for confirmation first."),
 		t("- Operation results stay in the bottom status/log pane."),
@@ -73,8 +69,8 @@ func (s *homeScreen) refresh(app *appModel) {
 }
 
 func (s *homeScreen) view(app *appModel, width, height int) string {
-	leftWidth, _ := splitContentWidths(width, 28, 24)
-	return renderSplitBody(t("Overview"), s.summary, t("Capabilities"), s.notes, width, height, leftWidth)
+	leftWidth := maxInt(1, (width-3)/2)
+	return renderSplitBody(t("Information Overview"), s.overview, t("Feature Guide"), s.guide, width, height, leftWidth)
 }
 
 func (s *homeScreen) help() string {

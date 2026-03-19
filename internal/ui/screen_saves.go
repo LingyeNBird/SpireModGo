@@ -5,42 +5,29 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"slaymodgo/internal/manager"
 )
 
 type savesScreen struct {
-	fieldCursor            int
-	backupCursor           int
-	section                int
-	steamIDs               []string
-	normalSlots            []manager.SaveSlotInfo
-	moddedSlots            []manager.SaveSlotInfo
-	backups                []manager.BackupInfo
-	sourceType             manager.SaveType
-	sourceSlot             int
-	targetType             manager.SaveType
-	targetSlot             int
-	restoreSlot            int
-	createBeforeCopyBackup bool
-	err                    string
+	listCursor     int
+	lastSlotCursor int
+	backupCursor   int
+	section        int
+	steamIDs       []string
+	normalSlots    []manager.SaveSlotInfo
+	moddedSlots    []manager.SaveSlotInfo
+	backups        []manager.BackupInfo
+	err            string
 }
 
 func (s *savesScreen) refresh(app *appModel) {
-	if s.sourceSlot == 0 {
-		s.sourceSlot = 1
+	if s.listCursor == 0 {
+		s.listCursor = 1
 	}
-	if s.targetSlot == 0 {
-		s.targetSlot = 1
-	}
-	if s.restoreSlot == 0 {
-		s.restoreSlot = 1
-	}
-	if s.sourceType == "" {
-		s.sourceType = manager.SaveTypeNormal
-	}
-	if s.targetType == "" {
-		s.targetType = manager.SaveTypeModded
+	if s.lastSlotCursor == 0 {
+		s.lastSlotCursor = 1
 	}
 	s.err = ""
 	ids, err := app.state.ListSteamIDs()
@@ -70,51 +57,58 @@ func (s *savesScreen) refresh(app *appModel) {
 	s.normalSlots = normalSlots
 	s.moddedSlots = moddedSlots
 	s.backups = backups
-	if s.backupCursor >= len(s.backups) {
-		s.backupCursor = maxInt(0, len(s.backups)-1)
+	if s.listCursor > 6 {
+		s.listCursor = 6
 	}
-	if len(s.backups) > 0 && s.backups[s.backupCursor].Slot >= 1 && s.backups[s.backupCursor].Slot <= 3 {
-		s.restoreSlot = s.backups[s.backupCursor].Slot
+	filtered := s.selectedBackups()
+	if s.backupCursor >= len(filtered) {
+		s.backupCursor = maxInt(0, len(filtered)-1)
 	}
 }
 
 func (s *savesScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
-	case "s":
+	case "s", "tab":
 		s.section = 1 - s.section
 	case "up", "k":
 		if s.section == 0 {
-			if s.fieldCursor > 0 {
-				s.fieldCursor--
+			if s.listCursor > 0 {
+				s.listCursor--
+				if s.listCursor > 0 {
+					s.lastSlotCursor = s.listCursor
+				}
 			}
 		} else if s.backupCursor > 0 {
 			s.backupCursor--
-			if len(s.backups) > 0 {
-				s.restoreSlot = s.backups[s.backupCursor].Slot
-			}
 		}
 	case "down", "j":
 		if s.section == 0 {
-			if s.fieldCursor < 6 {
-				s.fieldCursor++
+			if s.listCursor < 6 {
+				s.listCursor++
+				s.lastSlotCursor = s.listCursor
 			}
-		} else if s.backupCursor < len(s.backups)-1 {
+		} else if s.backupCursor < len(s.selectedBackups())-1 {
 			s.backupCursor++
-			if len(s.backups) > 0 {
-				s.restoreSlot = s.backups[s.backupCursor].Slot
-			}
 		}
 	case "left", "h":
-		s.adjustField(app, -1)
+		if s.section == 0 && s.listCursor == 0 {
+			s.switchSteamProfile(app, -1)
+		}
 	case "right", "l":
-		s.adjustField(app, 1)
+		if s.section == 0 && s.listCursor == 0 {
+			s.switchSteamProfile(app, 1)
+		}
 	case "c":
-		s.copySave(app)
+		s.openCopyModal(app)
 	case "b":
-		s.backupSource(app)
-	case "enter", "r":
+		s.backupSelected(app)
+	case "r", "enter":
 		if s.section == 1 {
 			s.restoreSelected(app)
+		}
+	case "x":
+		if s.section == 1 {
+			s.deleteSelected(app)
 		}
 	}
 	return nil
@@ -124,173 +118,217 @@ func (s *savesScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, 
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return nil
 	}
-	leftWidth, _ := splitContentWidths(width, 30, 24)
+	leftWidth := maxInt(1, (width-3)/2)
 	layout := newSplitBodyLayout(width, height, leftWidth)
 	if layout.leftBody.contains(x, y) {
 		localX, localY := x-layout.leftBody.x, y-layout.leftBody.y
 		s.section = 0
-		switch {
-		case localY >= 0 && localY <= 6:
-			s.fieldCursor = localY
-			if s.fieldCursor == 6 {
-				s.adjustField(app, 1)
-				return nil
-			}
-			delta := 1
+		switch localY {
+		case 0:
+			s.listCursor = 0
 			if localX < layout.leftBody.width/2 {
-				delta = -1
+				s.switchSteamProfile(app, -1)
+			} else {
+				s.switchSteamProfile(app, 1)
 			}
-			s.adjustField(app, delta)
-		case localY == 8:
-			s.copySave(app)
-		case localY == 9:
-			s.backupSource(app)
+		case 3, 4, 5:
+			s.listCursor = localY - 2
+			s.lastSlotCursor = s.listCursor
+		case 8, 9, 10:
+			s.listCursor = localY - 4
+			s.lastSlotCursor = s.listCursor
 		}
 		return nil
 	}
 	if layout.rightBody.contains(x, y) {
-		localY := y - layout.rightBody.y
-		s.section = 1
+		localX, localY := x-layout.rightBody.x, y-layout.rightBody.y
+		filtered := s.selectedBackups()
 		switch {
-		case localY == 0:
-			s.restoreSelected(app)
-		case localY >= 2:
-			idx := localY - 2
-			if idx >= 0 && idx < len(s.backups) {
+		case localY == 7:
+			s.openCopyModal(app)
+		case localY == 8:
+			s.backupSelected(app)
+		case localY == 10:
+			if localX < layout.rightBody.width/2 {
+				s.section = 1
+				s.restoreSelected(app)
+			} else {
+				s.section = 1
+				s.deleteSelected(app)
+			}
+		case localY >= 12:
+			idx := localY - 12
+			if idx >= 0 && idx < len(filtered) {
+				s.section = 1
 				s.backupCursor = idx
-				s.restoreSlot = s.backups[idx].Slot
 			}
 		}
 	}
 	return nil
 }
 
-func (s *savesScreen) adjustField(app *appModel, delta int) {
+func (s *savesScreen) view(app *appModel, width, height int) string {
+	if s.err != "" {
+		return t("Save management error\n\n%s", s.err)
+	}
+	if len(s.steamIDs) == 0 {
+		return t("No Steam save profiles were found under:\n\n%s\n\nLaunch the game once to create the save folders, then refresh this screen.", app.manager.SaveRoot)
+	}
+	leftWidth := maxInt(1, (width-3)/2)
+	leftBody := s.renderLeftList(app)
+	rightBody := s.renderRightPanel(app)
+	return renderSplitBody(t("Save List"), leftBody, t("Save Management"), rightBody, width, height, leftWidth)
+}
+
+func (s *savesScreen) help() string {
+	return t("Saves: left/right switch Steam profile | click slots and backups | c copy | b backup | r restore | x delete backup")
+}
+
+func (s *savesScreen) renderLeftList(app *appModel) string {
+	lines := []string{renderSelectableLine(renderValueControl(t("Steam ID"), app.state.SelectedSteamID()), s.listCursor == 0, app.focus == focusContent && s.section == 0), "", t("Vanilla Saves")}
+	for slot := 1; slot <= 3; slot++ {
+		label := t("%d  %s  %d backups", slot, buildSlotStatus(s.normalSlots[slot-1]), s.backupCountForSlot(manager.SaveTypeNormal, slot))
+		lines = append(lines, renderSelectableLine(label, s.listCursor == slot, app.focus == focusContent && s.section == 0))
+	}
+	lines = append(lines, "", t("Modded Saves"))
+	for slot := 1; slot <= 3; slot++ {
+		label := t("%d  %s  %d backups", slot, buildSlotStatus(s.moddedSlots[slot-1]), s.backupCountForSlot(manager.SaveTypeModded, slot))
+		lines = append(lines, renderSelectableLine(label, s.listCursor == slot+3, app.focus == focusContent && s.section == 0))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (s *savesScreen) renderRightPanel(app *appModel) string {
+	selectedType, selectedSlot, info := s.selectedSlotInfo()
+	lines := []string{
+		t("Save Info"),
+		t("Type: %s", formatSaveTypeName(selectedType)),
+		t("Slot: %d", selectedSlot),
+		t("Status: %s", buildSlotStatus(info)),
+		t("Backups: %d", s.backupCountForSlot(selectedType, selectedSlot)),
+		"",
+		t("Save Actions"),
+		renderActionLine(t("Copy Save"), false),
+		renderActionLine(t("Backup Save"), false),
+		"",
+		strings.Join([]string{renderActionLine(t("Restore Backup"), false), renderActionLine(t("Delete Backup"), false)}, " "),
+	}
+	filtered := s.selectedBackups()
+	for _, backupLine := range s.renderBackupLines(filtered, app.focus == focusContent && s.section == 1) {
+		lines = append(lines, backupLine)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (s *savesScreen) renderBackupLines(backups []manager.BackupInfo, focused bool) []string {
+	lines := []string{t("Backup List")}
+	if len(backups) == 0 {
+		return append(lines, mutedStyle.Render(t("No backups exist for the selected Steam profile yet.")))
+	}
+	for idx, backup := range backups {
+		label := fmt.Sprintf("%s (%s)", backup.Name, backupTimestampText(backup.Name))
+		lines = append(lines, renderSelectableLine(label, idx == s.backupCursor, focused))
+	}
+	return lines
+}
+
+func (s *savesScreen) switchSteamProfile(app *appModel, delta int) {
 	if len(s.steamIDs) == 0 {
 		return
 	}
-	switch s.fieldCursor {
-	case 0:
-		idx := 0
-		for i, id := range s.steamIDs {
-			if id == app.state.SelectedSteamID() {
-				idx = i
-				break
-			}
+	current := 0
+	for idx, steamID := range s.steamIDs {
+		if steamID == app.state.SelectedSteamID() {
+			current = idx
+			break
 		}
-		idx = (idx + delta + len(s.steamIDs)) % len(s.steamIDs)
-		app.state.SetSelectedSteamID(s.steamIDs[idx])
-		app.logInfo("Switched active Steam profile to %s", s.steamIDs[idx])
-		s.refresh(app)
-	case 1:
-		if s.sourceType == manager.SaveTypeNormal {
-			s.sourceType = manager.SaveTypeModded
-		} else {
-			s.sourceType = manager.SaveTypeNormal
-		}
-	case 2:
-		s.sourceSlot = rotateSlot(s.sourceSlot, delta)
-	case 3:
-		if s.targetType == manager.SaveTypeNormal {
-			s.targetType = manager.SaveTypeModded
-		} else {
-			s.targetType = manager.SaveTypeNormal
-		}
-	case 4:
-		s.targetSlot = rotateSlot(s.targetSlot, delta)
-	case 5:
-		s.restoreSlot = rotateSlot(s.restoreSlot, delta)
-	case 6:
-		s.createBeforeCopyBackup = !s.createBeforeCopyBackup
 	}
+	current = (current + delta + len(s.steamIDs)) % len(s.steamIDs)
+	app.state.SetSelectedSteamID(s.steamIDs[current])
+	app.logInfo("Switched active Steam profile to %s", s.steamIDs[current])
+	s.refresh(app)
 }
 
-func (s *savesScreen) copySave(app *appModel) {
-	if s.sourceType == s.targetType && s.sourceSlot == s.targetSlot {
-		app.showInfo("Copy Save", "Choose different source and target slots before copying.")
+func (s *savesScreen) openCopyModal(app *appModel) {
+	selectedType, selectedSlot, info := s.selectedSlotInfo()
+	if !info.HasData {
+		app.showInfo("Copy Save", t("Slot %s is empty, so there is nothing to copy.", formatSaveRef(selectedType, selectedSlot)))
 		return
 	}
-	sourceInfo, err := app.state.GetSaveSlotInfo(s.sourceType, s.sourceSlot)
-	if err != nil {
-		app.showError("Could not inspect source slot", err)
-		return
-	}
-	if !sourceInfo.HasData {
-		app.showInfo("Copy Save", t("Source slot %s is empty.", formatSaveRef(s.sourceType, s.sourceSlot)))
-		return
-	}
-	targetInfo, err := app.state.GetSaveSlotInfo(s.targetType, s.targetSlot)
-	if err != nil {
-		app.showError("Could not inspect target slot", err)
-		return
-	}
-	execute := func(model *appModel) {
-		result, copyErr := model.state.CopySave(s.sourceType, s.sourceSlot, s.targetType, s.targetSlot, s.createBeforeCopyBackup)
-		if copyErr != nil {
-			model.showError("Copy save failed", copyErr)
+	options := s.buildCopyOptions(selectedType, selectedSlot)
+	app.showCopyTargetModal("Copy Options", options, func(model *appModel, option copyTargetOption, createBackup bool) {
+		result, err := model.state.CopySave(selectedType, selectedSlot, option.SaveType, option.Slot, createBackup)
+		if err != nil {
+			model.showError("Copy save failed", err)
 			return
 		}
-		model.logSuccess("Copied %d file(s): %s -> %s", result.CopiedFiles, formatSaveRef(s.sourceType, s.sourceSlot), formatSaveRef(s.targetType, s.targetSlot))
+		model.logSuccess("Copied %d file(s): %s -> %s", result.CopiedFiles, formatSaveRef(selectedType, selectedSlot), formatSaveRef(option.SaveType, option.Slot))
 		if result.BackupDir != "" {
 			model.logInfo("Automatic backup created: %s", result.BackupDir)
+		}
+		if createBackup {
+			model.logInfo("Created .before_copy files before overwriting target save data")
 		}
 		if result.CloudSynced {
 			model.logInfo("Updated %d Steam cloud cache file(s)", result.CloudUpdated)
 		}
 		s.refresh(model)
-	}
-	if targetInfo.HasData {
-		app.showConfirm("Confirm Save Copy", t("Target slot %s already has data. The manager will back it up first and then overwrite it. Continue?", formatSaveRef(s.targetType, s.targetSlot)), execute)
-		return
-	}
-	execute(app)
+	})
 }
 
-func (s *savesScreen) backupSource(app *appModel) {
-	info, err := app.state.GetSaveSlotInfo(s.sourceType, s.sourceSlot)
-	if err != nil {
-		app.showError("Could not inspect source slot", err)
-		return
+func (s *savesScreen) buildCopyOptions(sourceType manager.SaveType, sourceSlot int) []copyTargetOption {
+	options := []copyTargetOption{{Header: true, Label: t("Vanilla Saves")}}
+	for slot := 1; slot <= 3; slot++ {
+		if sourceType == manager.SaveTypeNormal && slot == sourceSlot {
+			continue
+		}
+		info := s.normalSlots[slot-1]
+		options = append(options, copyTargetOption{Label: fmt.Sprintf("%d", slot), SaveType: manager.SaveTypeNormal, Slot: slot, Status: buildSlotStatus(info), HasData: info.HasData})
 	}
+	options = append(options, copyTargetOption{Header: true, Label: t("Modded Saves")})
+	for slot := 1; slot <= 3; slot++ {
+		if sourceType == manager.SaveTypeModded && slot == sourceSlot {
+			continue
+		}
+		info := s.moddedSlots[slot-1]
+		options = append(options, copyTargetOption{Label: fmt.Sprintf("%d", slot), SaveType: manager.SaveTypeModded, Slot: slot, Status: buildSlotStatus(info), HasData: info.HasData})
+	}
+	return options
+}
+
+func (s *savesScreen) backupSelected(app *appModel) {
+	selectedType, selectedSlot, info := s.selectedSlotInfo()
 	if !info.HasData {
-		app.showInfo("Backup Save", t("Slot %s is empty, so there is nothing to back up.", formatSaveRef(s.sourceType, s.sourceSlot)))
+		app.showInfo("Backup Save", t("Slot %s is empty, so there is nothing to back up.", formatSaveRef(selectedType, selectedSlot)))
 		return
 	}
-	backupDir, err := app.state.BackupSave(s.sourceType, s.sourceSlot)
+	backupDir, err := app.state.BackupSave(selectedType, selectedSlot)
 	if err != nil {
 		app.showError("Backup failed", err)
 		return
 	}
 	if backupDir == "" {
-		app.logWarn("No save files were backed up from %s", formatSaveRef(s.sourceType, s.sourceSlot))
+		app.logWarn("No save files were backed up from %s", formatSaveRef(selectedType, selectedSlot))
 	} else {
-		app.logSuccess("Created manual backup for %s at %s", formatSaveRef(s.sourceType, s.sourceSlot), backupDir)
+		app.logSuccess("Created manual backup for %s at %s", formatSaveRef(selectedType, selectedSlot), backupDir)
 	}
 	s.refresh(app)
 }
 
 func (s *savesScreen) restoreSelected(app *appModel) {
-	if len(s.backups) == 0 || s.backupCursor >= len(s.backups) {
+	backups := s.selectedBackups()
+	if len(backups) == 0 || s.backupCursor >= len(backups) {
 		app.showInfo("Restore Backup", "Select a backup before restoring.")
 		return
 	}
-	backup := s.backups[s.backupCursor]
-	targetInfo, err := app.state.GetSaveSlotInfo(backup.Type, s.restoreSlot)
-	if err != nil {
-		app.showError("Could not inspect restore target", err)
-		return
-	}
-	message := t("Restore backup %s to %s slot %d?", backup.Name, strings.ToLower(formatSaveTypeName(backup.Type)), s.restoreSlot)
-	if targetInfo.HasData {
-		message += "\n\n" + t("The current target slot has data and will be backed up automatically before restore.")
-	}
-	app.showConfirm("Confirm Restore", message, func(model *appModel) {
-		result, restoreErr := model.state.RestoreBackup(backup, s.restoreSlot)
-		if restoreErr != nil {
-			model.showError("Restore failed", restoreErr)
+	backup := backups[s.backupCursor]
+	app.showConfirm("Confirm Restore", t("Restore backup %s to %s slot %d?", backup.Name, strings.ToLower(formatSaveTypeName(backup.Type)), backup.Slot), func(model *appModel) {
+		result, err := model.state.RestoreBackup(backup, backup.Slot)
+		if err != nil {
+			model.showError("Restore failed", err)
 			return
 		}
-		model.logSuccess("Restored backup %s into %s (%d file(s))", backup.Name, formatSaveRef(backup.Type, s.restoreSlot), result.CopiedFiles)
+		model.logSuccess("Restored backup %s into %s (%d file(s))", backup.Name, formatSaveRef(backup.Type, backup.Slot), result.CopiedFiles)
 		if result.BackupDir != "" {
 			model.logInfo("Backed up the current target first: %s", result.BackupDir)
 		}
@@ -301,58 +339,78 @@ func (s *savesScreen) restoreSelected(app *appModel) {
 	})
 }
 
-func (s *savesScreen) view(app *appModel, width, height int) string {
-	if s.err != "" {
-		return t("Save management error\n\n%s", s.err)
+func (s *savesScreen) deleteSelected(app *appModel) {
+	backups := s.selectedBackups()
+	if len(backups) == 0 || s.backupCursor >= len(backups) {
+		app.showInfo("Delete Backup", "Select a backup before deleting.")
+		return
 	}
-	if len(s.steamIDs) == 0 {
-		return t("No Steam save profiles were found under:\n\n%s\n\nLaunch the game once to create the save folders, then refresh this screen.", app.manager.SaveRoot)
-	}
-	fields := []string{
-		renderValueControl(t("Steam ID"), app.state.SelectedSteamID()),
-		renderValueControl(t("Source Type"), formatSaveTypeName(s.sourceType)),
-		renderValueControl(t("Source Slot"), fmt.Sprintf("%d", s.sourceSlot)),
-		renderValueControl(t("Target Type"), formatSaveTypeName(s.targetType)),
-		renderValueControl(t("Target Slot"), fmt.Sprintf("%d", s.targetSlot)),
-		renderValueControl(t("Restore Slot"), fmt.Sprintf("%d", s.restoreSlot)),
-		renderValueControl(t("Create .before_copy"), fmt.Sprintf("%t", s.createBeforeCopyBackup)),
-	}
-	fieldList := renderList(fields, s.fieldCursor, app.focus == focusContent && s.section == 0)
+	backup := backups[s.backupCursor]
+	app.showConfirm("Delete Backup", t("Delete backup %s?", backup.Name), func(model *appModel) {
+		if err := model.state.DeleteBackup(backup); err != nil {
+			model.showError("Delete backup failed", err)
+			return
+		}
+		model.logSuccess("Deleted backup %s", backup.Name)
+		s.refresh(model)
+	})
+}
 
-	var slots strings.Builder
-	slots.WriteString(t("Save Slots") + "\n\n")
-	slots.WriteString(t("Slot  Vanilla               Modded") + "\n")
-	for idx := 0; idx < 3; idx++ {
-		slots.WriteString(fmt.Sprintf("%s   %-20s %s\n", formatSaveRef(manager.SaveTypeNormal, idx+1), buildSlotStatus(s.normalSlots[idx]), buildSlotStatus(s.moddedSlots[idx])))
+func (s *savesScreen) selectedSlotInfo() (manager.SaveType, int, manager.SaveSlotInfo) {
+	cursor := s.listCursor
+	if cursor == 0 {
+		cursor = s.lastSlotCursor
 	}
+	if cursor >= 4 {
+		slot := cursor - 3
+		return manager.SaveTypeModded, slot, s.moddedSlots[slot-1]
+	}
+	slot := maxInt(1, cursor)
+	return manager.SaveTypeNormal, slot, s.normalSlots[slot-1]
+}
 
-	backupItems := make([]string, 0, len(s.backups))
+func (s *savesScreen) selectedBackups() []manager.BackupInfo {
+	selectedType, selectedSlot, _ := s.selectedSlotInfo()
+	filtered := make([]manager.BackupInfo, 0)
 	for _, backup := range s.backups {
-		backupItems = append(backupItems, t("%s slot %d (%d files)", formatSaveTypeName(backup.Type), backup.Slot, backup.FileCount))
+		if backup.Type == selectedType && backup.Slot == selectedSlot {
+			filtered = append(filtered, backup)
+		}
 	}
-	backupList := renderList(backupItems, s.backupCursor, app.focus == focusContent && s.section == 1)
-	backupDetail := t("No backups exist for the selected Steam profile yet.")
-	if len(s.backups) > 0 && s.backupCursor < len(s.backups) {
-		backupDetail = renderBackupDetail(s.backups[s.backupCursor])
-	}
-
-	leftWidth, _ := splitContentWidths(width, 30, 24)
-	leftBody := strings.Join([]string{fieldList, "", renderActionLine(t("Copy Save"), false), renderActionLine(t("Backup Save"), false), "", slots.String()}, "\n")
-	rightBody := strings.Join([]string{renderActionLine(t("Restore Backup"), false), "", backupList, "", t("Selected Backup"), "", backupDetail}, "\n")
-	return renderSplitBody(t("Copy and Restore"), leftBody, t("Backups"), rightBody, width, height, leftWidth)
+	return filtered
 }
 
-func (s *savesScreen) help() string {
-	return t("Saves: click fields to change | click backup rows and action buttons | left/right change | c copy | b backup | enter/r restore")
+func (s *savesScreen) backupCountForSlot(saveType manager.SaveType, slot int) int {
+	count := 0
+	for _, backup := range s.backups {
+		if backup.Type == saveType && backup.Slot == slot {
+			count++
+		}
+	}
+	return count
 }
 
-func rotateSlot(value, delta int) int {
-	value += delta
-	if value < 1 {
-		return 3
+func renderSelectableLine(text string, selected, focused bool) string {
+	prefix := "  "
+	style := lipgloss.NewStyle()
+	if selected {
+		prefix = "> "
+		style = cursorStyle
+		if focused {
+			style = focusStyle
+		}
 	}
-	if value > 3 {
-		return 1
+	return style.Render(prefix + text)
+}
+
+func backupTimestampText(name string) string {
+	parts := strings.Split(name, "_")
+	if len(parts) < 2 {
+		return "-"
 	}
-	return value
+	stamp := parts[len(parts)-2] + "_" + parts[len(parts)-1]
+	if len(stamp) != len("20060102_150405") {
+		return "-"
+	}
+	return stamp
 }

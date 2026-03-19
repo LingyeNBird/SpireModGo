@@ -66,6 +66,14 @@ func (m *Manager) CopySave(steamID string, srcType SaveType, srcSlot int, dstTyp
 	if err := ensureDir(dstInfo.Path); err != nil {
 		return result, err
 	}
+	if options.CreateBeforeCopyBackup {
+		if err := snapshotRegularFiles(dstInfo.Path, ".before_copy"); err != nil {
+			return result, err
+		}
+	}
+	if err := clearDirForSaveReplace(dstInfo.Path, ".before_copy"); err != nil {
+		return result, err
+	}
 
 	entries, err := os.ReadDir(srcInfo.Path)
 	if err != nil {
@@ -220,6 +228,9 @@ func (m *Manager) RestoreBackup(steamID string, backup BackupInfo, targetSlot in
 	if err := ensureDir(targetPath); err != nil {
 		return result, err
 	}
+	if err := clearDirForSaveReplace(targetPath, ""); err != nil {
+		return result, err
+	}
 	entries, err := os.ReadDir(backup.FullPath)
 	if err != nil {
 		return result, err
@@ -241,6 +252,65 @@ func (m *Manager) RestoreBackup(steamID string, backup BackupInfo, targetSlot in
 		result.CloudUpdated = cloudUpdated
 	}
 	return result, nil
+}
+
+func snapshotRegularFiles(root, suffix string) error {
+	if root == "" || suffix == "" || !dirExists(root) {
+		return nil
+	}
+	return filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(strings.ToLower(d.Name()), strings.ToLower(suffix)) {
+			return nil
+		}
+		return copyRegularFile(path, path+suffix)
+	})
+}
+
+func clearDirForSaveReplace(root, preserveSuffix string) error {
+	if root == "" || !dirExists(root) {
+		return nil
+	}
+	var dirs []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == root {
+			return nil
+		}
+		if d.IsDir() {
+			dirs = append(dirs, path)
+			return nil
+		}
+		if preserveSuffix != "" && strings.HasSuffix(strings.ToLower(d.Name()), strings.ToLower(preserveSuffix)) {
+			return nil
+		}
+		return os.Remove(path)
+	})
+	if err != nil {
+		return err
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
+	for _, dir := range dirs {
+		_ = os.Remove(dir)
+	}
+	return nil
+}
+
+func (m *Manager) DeleteBackup(backup BackupInfo) error {
+	if backup.FullPath == "" {
+		return fmt.Errorf("backup path is empty")
+	}
+	if err := os.RemoveAll(backup.FullPath); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) saveSlotPath(steamID string, saveType SaveType, slot int) string {

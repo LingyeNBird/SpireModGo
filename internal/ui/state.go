@@ -208,6 +208,14 @@ func (s *State) RestoreBackup(backup manager.BackupInfo, targetSlot int) (manage
 	return s.manager.RestoreBackup(steamID, backup, targetSlot)
 }
 
+func (s *State) DeleteBackup(backup manager.BackupInfo) error {
+	_, err := s.requireSteamID()
+	if err != nil {
+		return err
+	}
+	return s.manager.DeleteBackup(backup)
+}
+
 func (s *State) requireSteamID() (string, error) {
 	if s.selectedSteamID != "" {
 		return s.selectedSteamID, nil

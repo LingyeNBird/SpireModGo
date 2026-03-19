@@ -103,7 +103,7 @@ func (s *settingsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, widt
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return nil
 	}
-	leftWidth, _ := splitContentWidths(width, 28, 24)
+	leftWidth := maxInt(1, (width-3)/2)
 	layout := newSplitBodyLayout(width, height, leftWidth)
 	if !layout.leftBody.contains(x, y) {
 		return nil
@@ -180,7 +180,7 @@ func (s *settingsScreen) view(app *appModel, width, height int) string {
 		s.input.Prompt = "  "
 	}
 	actionText := renderList(actions, s.actionCursor, app.focus == focusContent && !s.editing)
-	leftWidth, _ := splitContentWidths(width, 28, 24)
+	leftWidth := maxInt(1, (width-3)/2)
 	leftBody := strings.Join([]string{
 		t("Game Dir"),
 		s.input.View(),
