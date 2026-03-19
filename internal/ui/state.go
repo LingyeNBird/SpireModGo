@@ -79,6 +79,10 @@ func (s *State) ListAvailableMods() ([]manager.ModPackage, error) {
 	return s.manager.ListAvailableMods(dir)
 }
 
+func (s *State) PreviewZipMods(zipPath string) ([]manager.ArchiveImportCandidate, error) {
+	return s.manager.PreviewZipMods(zipPath)
+}
+
 func (s *State) ListInstalledMods() ([]manager.InstalledMod, error) {
 	dir, err := s.EnsureGameDir()
 	if err != nil {
@@ -93,6 +97,30 @@ func (s *State) InstallMods(mods []manager.ModPackage) ([]manager.InstallResult,
 		return nil, err
 	}
 	return s.manager.InstallMods(dir, mods)
+}
+
+func (s *State) ImportAvailableModsFromZip(zipPath string) ([]manager.ArchiveImportResult, error) {
+	return s.manager.ImportAvailableModsFromZip(zipPath)
+}
+
+func (s *State) ImportInstalledModsFromZip(zipPath string) ([]manager.ArchiveImportResult, error) {
+	dir, err := s.EnsureGameDir()
+	if err != nil {
+		return nil, err
+	}
+	return s.manager.ImportInstalledModsFromZip(dir, zipPath)
+}
+
+func (s *State) ExportAvailableModsToZip(mods []manager.ModPackage, zipPath string) (manager.ArchiveExportResult, error) {
+	return s.manager.ExportAvailableModsToZip(mods, zipPath)
+}
+
+func (s *State) ExportInstalledModsToZip(names []string, zipPath string) (manager.ArchiveExportResult, error) {
+	dir, err := s.EnsureGameDir()
+	if err != nil {
+		return manager.ArchiveExportResult{}, err
+	}
+	return s.manager.ExportInstalledModsToZip(dir, names, zipPath)
 }
 
 func (s *State) UninstallMods(names []string) ([]manager.UninstallResult, bool, error) {
@@ -111,8 +139,8 @@ func (s *State) UninstallMods(names []string) ([]manager.UninstallResult, bool, 
 	return results, warn, nil
 }
 
-func (s *State) RepairAvailableMod(dirName string) (manager.ModRepairResult, error) {
-	return s.manager.RepairMod(filepath.Join(s.manager.ModsSource, dirName))
+func (s *State) RepairAvailableMod(sourcePath string) (manager.ModRepairResult, error) {
+	return s.manager.RepairMod(sourcePath)
 }
 
 func (s *State) RepairInstalledMod(dirName string) (manager.ModRepairResult, error) {
