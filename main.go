@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"slaymodgo/internal/manager"
-	"slaymodgo/internal/ui"
+	"spiremodgo/internal/manager"
+	"spiremodgo/internal/ui"
 )
 
 func main() {

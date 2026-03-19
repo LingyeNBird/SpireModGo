@@ -1,4 +1,4 @@
-module slaymodgo
+module spiremodgo
 
 go 1.25.0
 
