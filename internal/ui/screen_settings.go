@@ -47,7 +47,7 @@ func (s *settingsScreen) refresh(app *appModel) {
 		t("Current Paths"),
 		"",
 		t("Config file: %s", app.manager.ConfigPath),
-		t("Bundled Mods: %s", app.manager.ModsSource),
+		t("Bundled Mods: %s", app.manager.DisplayAvailableModsRoot()),
 		t("Save root: %s", app.manager.SaveRoot),
 	}
 	if app.state.GameDir() != "" {

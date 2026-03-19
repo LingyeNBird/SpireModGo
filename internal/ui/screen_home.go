@@ -34,7 +34,7 @@ func (s *homeScreen) refresh(app *appModel) {
 	} else {
 		summaryText.WriteString(t("Game directory: %s\n", app.state.GameDir()))
 	}
-	summaryText.WriteString(t("Mod directory: %s\n", app.manager.ModsSource))
+	summaryText.WriteString(t("Mod directory: %s\n", app.manager.DisplayAvailableModsRoot()))
 	summaryText.WriteString(t("Save root: %s\n", app.manager.SaveRoot))
 	summaryText.WriteString(t("Installed mods: %s\n", installedState))
 

@@ -79,26 +79,41 @@ func TestRenderSaveSlotTableAlignsBackupCounts(tt *testing.T) {
 	}
 }
 
-func TestModsActionIndexAtUsesRenderedLabelWidths(tt *testing.T) {
+func TestModsPrimaryActionIndexAtUsesRenderedLabelWidths(tt *testing.T) {
 	loadTestLocalizer(tt)
 	screen := modsScreen{tab: modsTabAvailable}
-	labels := screen.actionLabels()
+	labels := screen.primaryActionLabels()
 	firstWidth := lipgloss.Width(formatButtonLabel(labels[0]))
 	secondWidth := lipgloss.Width(formatButtonLabel(labels[1]))
 	thirdWidth := lipgloss.Width(formatButtonLabel(labels[2]))
-	if got := screen.actionIndexAt(firstWidth / 2); got != 0 {
+	if got := screen.actionIndexAt(0, firstWidth/2); got != 0 {
 		tt.Fatalf("expected select-all hit to map to index 0, got %d", got)
 	}
 	cancelX := firstWidth + 1 + secondWidth/2
-	if got := screen.actionIndexAt(cancelX); got != 1 {
+	if got := screen.actionIndexAt(0, cancelX); got != 1 {
 		tt.Fatalf("expected cancel hit to map to index 1, got %d", got)
 	}
 	installX := firstWidth + 1 + secondWidth + 1 + thirdWidth/2
-	if got := screen.actionIndexAt(installX); got != 2 {
+	if got := screen.actionIndexAt(0, installX); got != 2 {
 		tt.Fatalf("expected install hit to map to index 2, got %d", got)
 	}
-	if got := screen.actionIndexAt(firstWidth); got != -1 {
+	if got := screen.actionIndexAt(0, firstWidth); got != -1 {
 		tt.Fatalf("expected separator gap to be non-clickable, got %d", got)
+	}
+}
+
+func TestModsSecondaryActionIndexAtUsesRenderedLabelWidths(tt *testing.T) {
+	loadTestLocalizer(tt)
+	screen := modsScreen{tab: modsTabAvailable}
+	labels := screen.secondaryActionLabels()
+	firstWidth := lipgloss.Width(formatButtonLabel(labels[0]))
+	secondWidth := lipgloss.Width(formatButtonLabel(labels[1]))
+	if got := screen.actionIndexAt(1, firstWidth/2); got != 0 {
+		tt.Fatalf("expected import hit to map to index 0, got %d", got)
+	}
+	exportX := firstWidth + 1 + secondWidth/2
+	if got := screen.actionIndexAt(1, exportX); got != 1 {
+		tt.Fatalf("expected export hit to map to index 1, got %d", got)
 	}
 }
 

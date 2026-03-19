@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"errors"
+	"fmt"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -100,6 +103,8 @@ func (s *modsScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 		}
 	case "f":
 		s.repairCurrent(app)
+	case "o":
+		s.exportCurrent(app)
 	}
 	return nil
 }
@@ -133,7 +138,7 @@ func (s *modsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, h
 			s.tab = modsTabInstalled
 		}
 	case localY == 2:
-		switch s.actionIndexAt(localX) {
+		switch s.actionIndexAt(0, localX) {
 		case 0:
 			s.selectAllCurrent()
 		case 1:
@@ -145,8 +150,15 @@ func (s *modsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, h
 				s.uninstallSelected(app)
 			}
 		}
-	case localY >= 3:
-		idx := localY - 3
+	case localY == 3:
+		switch s.actionIndexAt(1, localX) {
+		case 0:
+			s.importCurrent(app)
+		case 1:
+			s.exportCurrent(app)
+		}
+	case localY >= 4:
+		idx := localY - 4
 		if s.tab == modsTabAvailable && idx >= 0 && idx < len(s.available) {
 			s.availableCursor = idx
 			key := s.available[idx].InstallName
@@ -347,7 +359,7 @@ func (s *modsScreen) repairCurrent(app *appModel) {
 	}
 	if s.tab == modsTabAvailable {
 		mod := s.available[s.availableCursor]
-		result, err := app.state.RepairAvailableMod(mod.DirName)
+		result, err := app.state.RepairAvailableMod(mod.SourcePath)
 		if err != nil {
 			app.showError("Repair mod failed", err)
 			return
@@ -374,7 +386,7 @@ func (s *modsScreen) repairCurrent(app *appModel) {
 	s.refresh(app)
 }
 
-func (s *modsScreen) actionLabels() []string {
+func (s *modsScreen) primaryActionLabels() []string {
 	labels := []string{t("Select All"), t("Clear Selection")}
 	if s.tab == modsTabAvailable {
 		return append(labels, t("Install"))
@@ -382,8 +394,15 @@ func (s *modsScreen) actionLabels() []string {
 	return append(labels, t("Uninstall"))
 }
 
-func (s *modsScreen) actionIndexAt(localX int) int {
-	return inlineButtonIndexAt(s.actionLabels(), localX)
+func (s *modsScreen) secondaryActionLabels() []string {
+	return []string{t("Import"), t("Export")}
+}
+
+func (s *modsScreen) actionIndexAt(row, localX int) int {
+	if row == 0 {
+		return inlineButtonIndexAt(s.primaryActionLabels(), localX)
+	}
+	return inlineButtonIndexAt(s.secondaryActionLabels(), localX)
 }
 
 func (s *modsScreen) renderTabs() string {
@@ -438,7 +457,147 @@ func renderModsList(items []string) string {
 }
 
 func (s *modsScreen) renderActions() string {
-	return renderInlineButtonGroup(s.actionLabels(), -1, false)
+	return strings.Join([]string{
+		renderInlineButtonGroup(s.primaryActionLabels(), -1, false),
+		renderInlineButtonGroup(s.secondaryActionLabels(), -1, false),
+	}, "\n")
+}
+
+func (s *modsScreen) importCurrent(app *appModel) {
+	if s.tab == modsTabAvailable {
+		s.importAvailable(app)
+		return
+	}
+	s.importInstalled(app)
+}
+
+func (s *modsScreen) exportCurrent(app *appModel) {
+	if s.tab == modsTabAvailable {
+		s.exportAvailable(app)
+		return
+	}
+	s.exportInstalled(app)
+}
+
+func (s *modsScreen) importAvailable(app *appModel) {
+	zipPath, err := pickZipImportFile(app.manager.BaseDir)
+	if errors.Is(err, errFileDialogCancelled) {
+		return
+	}
+	if err != nil {
+		app.showError("Import failed", err)
+		return
+	}
+	items, err := app.state.PreviewZipMods(zipPath)
+	if err != nil {
+		app.showError("Import failed", err)
+		return
+	}
+	app.showConfirm("Confirm Import", formatImportConfirmation(items), func(model *appModel) {
+		results, err := model.state.ImportAvailableModsFromZip(zipPath)
+		if err != nil {
+			model.showError("Import failed", err)
+			return
+		}
+		for _, result := range results {
+			model.logSuccess("Imported %s into %s (%d file(s))", result.Name, result.Destination, result.FilesCopied)
+		}
+		s.availableSelected = map[string]bool{}
+		s.refresh(model)
+	})
+}
+
+func (s *modsScreen) importInstalled(app *appModel) {
+	zipPath, err := pickZipImportFile(app.manager.BaseDir)
+	if errors.Is(err, errFileDialogCancelled) {
+		return
+	}
+	if err != nil {
+		app.showError("Import failed", err)
+		return
+	}
+	items, err := app.state.PreviewZipMods(zipPath)
+	if err != nil {
+		app.showError("Import failed", err)
+		return
+	}
+	app.showConfirm("Confirm Import", formatImportConfirmation(items), func(model *appModel) {
+		results, err := model.state.ImportInstalledModsFromZip(zipPath)
+		if err != nil {
+			model.showError("Import failed", err)
+			return
+		}
+		for _, result := range results {
+			model.logSuccess("Imported %s into %s (%d file(s))", result.Name, result.Destination, result.FilesCopied)
+			if result.EnableChanged {
+				model.logInfo("Enabled the in-game mod toggle in settings.save where needed")
+			}
+		}
+		s.installedSelected = map[string]bool{}
+		s.refresh(model)
+		model.offerPostInstallSaveCopy()
+	})
+}
+
+func (s *modsScreen) exportAvailable(app *appModel) {
+	items := s.currentAvailableSelection()
+	if len(items) == 0 {
+		app.showInfo("Nothing Selected", "Select one or more packages before exporting.")
+		return
+	}
+	zipPath, err := pickZipExportFile(filepath.Dir(items[0].SourcePath), defaultExportName("available-mods"))
+	if errors.Is(err, errFileDialogCancelled) {
+		return
+	}
+	if err != nil {
+		app.showError("Export failed", err)
+		return
+	}
+	result, err := app.state.ExportAvailableModsToZip(items, zipPath)
+	if err != nil {
+		app.showError("Export failed", err)
+		return
+	}
+	app.logSuccess("Exported %d mod(s) to %s (%d file(s))", result.ModCount, result.ZipPath, result.FilesAdded)
+}
+
+func (s *modsScreen) exportInstalled(app *appModel) {
+	names := s.currentInstalledSelection()
+	if len(names) == 0 {
+		app.showInfo("Nothing Selected", "Select one or more installed mods before exporting.")
+		return
+	}
+	startDir := app.state.GameDir()
+	if startDir == "" {
+		startDir = app.manager.BaseDir
+	}
+	zipPath, err := pickZipExportFile(startDir, defaultExportName("installed-mods"))
+	if errors.Is(err, errFileDialogCancelled) {
+		return
+	}
+	if err != nil {
+		app.showError("Export failed", err)
+		return
+	}
+	result, err := app.state.ExportInstalledModsToZip(names, zipPath)
+	if err != nil {
+		app.showError("Export failed", err)
+		return
+	}
+	app.logSuccess("Exported %d mod(s) to %s (%d file(s))", result.ModCount, result.ZipPath, result.FilesAdded)
+}
+
+func formatImportConfirmation(items []manager.ArchiveImportCandidate) string {
+	lines := []string{t("Found %d mod(s):", len(items)), ""}
+	for idx, item := range items {
+		lines = append(lines, fmt.Sprintf("%d. %s", idx+1, item.Name))
+	}
+	lines = append(lines, "", t("Continue?"))
+	return strings.Join(lines, "\n")
+}
+
+func defaultExportName(prefix string) string {
+	return prefix + ".zip"
 }
 
 func (s *modsScreen) help() helpSection {
