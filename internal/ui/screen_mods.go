@@ -9,7 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"slaymodgo/internal/manager"
+	"spiremodgo/internal/manager"
+	uidialog "spiremodgo/internal/ui/dialog"
 )
 
 type modsTab int
@@ -480,8 +481,8 @@ func (s *modsScreen) exportCurrent(app *appModel) {
 }
 
 func (s *modsScreen) importAvailable(app *appModel) {
-	zipPath, err := pickZipImportFile(app.manager.BaseDir)
-	if errors.Is(err, errFileDialogCancelled) {
+	zipPath, err := uidialog.PickZipImportFile(app.manager.BaseDir)
+	if errors.Is(err, uidialog.ErrCancelled) {
 		return
 	}
 	if err != nil {
@@ -508,8 +509,8 @@ func (s *modsScreen) importAvailable(app *appModel) {
 }
 
 func (s *modsScreen) importInstalled(app *appModel) {
-	zipPath, err := pickZipImportFile(app.manager.BaseDir)
-	if errors.Is(err, errFileDialogCancelled) {
+	zipPath, err := uidialog.PickZipImportFile(app.manager.BaseDir)
+	if errors.Is(err, uidialog.ErrCancelled) {
 		return
 	}
 	if err != nil {
@@ -545,8 +546,8 @@ func (s *modsScreen) exportAvailable(app *appModel) {
 		app.showInfo("Nothing Selected", "Select one or more packages before exporting.")
 		return
 	}
-	zipPath, err := pickZipExportFile(filepath.Dir(items[0].SourcePath), defaultExportName("available-mods"))
-	if errors.Is(err, errFileDialogCancelled) {
+	zipPath, err := uidialog.PickZipExportFile(filepath.Dir(items[0].SourcePath), defaultExportName("available-mods"))
+	if errors.Is(err, uidialog.ErrCancelled) {
 		return
 	}
 	if err != nil {
@@ -571,8 +572,8 @@ func (s *modsScreen) exportInstalled(app *appModel) {
 	if startDir == "" {
 		startDir = app.manager.BaseDir
 	}
-	zipPath, err := pickZipExportFile(startDir, defaultExportName("installed-mods"))
-	if errors.Is(err, errFileDialogCancelled) {
+	zipPath, err := uidialog.PickZipExportFile(startDir, defaultExportName("installed-mods"))
+	if errors.Is(err, uidialog.ErrCancelled) {
 		return
 	}
 	if err != nil {
