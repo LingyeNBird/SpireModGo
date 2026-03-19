@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"slaymodgo/internal/manager"
+	"spiremodgo/internal/manager"
 )
 
 type modalKind int

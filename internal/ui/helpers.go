@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"slaymodgo/internal/manager"
+	"spiremodgo/internal/manager"
 )
 
 func formatTimestamp(value time.Time) string {

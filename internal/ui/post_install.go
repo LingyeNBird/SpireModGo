@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"slaymodgo/internal/manager"
+	"spiremodgo/internal/manager"
 )
 
 func (m *appModel) offerPostInstallSaveCopy() {
