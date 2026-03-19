@@ -1,4 +1,4 @@
-package ui
+package i18n
 
 const enUSLocaleCatalogJSON = `{
   "Loading...": "Loading...",
