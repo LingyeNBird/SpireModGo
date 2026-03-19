@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type logEntry struct {
@@ -46,6 +47,12 @@ func (l *logModel) Resize(width, height int) {
 
 func (l *logModel) View() string {
 	return l.viewport.View()
+}
+
+func (l *logModel) Update(msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	l.viewport, cmd = l.viewport.Update(msg)
+	return cmd
 }
 
 func (l *logModel) sync() {

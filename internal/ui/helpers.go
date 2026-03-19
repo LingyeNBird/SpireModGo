@@ -211,17 +211,7 @@ func countBakFiles(root string) int {
 }
 
 func renderFlatSection(title, body string, width, height int) string {
-	if width < 1 {
-		width = 1
-	}
-	if height < 2 {
-		height = 2
-	}
-	header := sectionTitleStyle.Width(width).Render(title)
-	divider := sectionDividerStyle.Width(width).Render(strings.Repeat("-", width))
-	bodyHeight := maxInt(1, height-2)
-	bodyView := sectionBodyStyle.Width(width).Height(bodyHeight).Render(body)
-	return lipgloss.JoinVertical(lipgloss.Left, header, divider, bodyView)
+	return renderPanel(title, body, width, height)
 }
 
 func renderFlatColumn(title, body string, width, height int) string {
@@ -247,10 +237,7 @@ func splitContentWidths(totalWidth, minLeft, minRight int) (int, int) {
 }
 
 func joinFlatColumns(left, right string, leftWidth, rightWidth int) string {
-	leftBox := lipgloss.NewStyle().Width(leftWidth).Render(left)
-	gap := lipgloss.NewStyle().Width(2).Render("")
-	rightBox := lipgloss.NewStyle().Width(rightWidth).Render(right)
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, gap, rightBox)
+	return joinColumns(left, right, leftWidth, rightWidth)
 }
 
 func renderList(items []string, cursor int, focused bool) string {
@@ -271,4 +258,16 @@ func renderList(items []string, cursor int, focused bool) string {
 		return mutedStyle.Render(t("(empty)"))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func renderActionLine(label string, active bool) string {
+	text := "[ " + label + " ]"
+	if active {
+		return buttonActiveStyle.Render(text)
+	}
+	return buttonStyle.Render(text)
+}
+
+func renderValueControl(label, value string) string {
+	return label + "  < " + value + " >"
 }
