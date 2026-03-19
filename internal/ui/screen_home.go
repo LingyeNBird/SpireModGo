@@ -73,10 +73,8 @@ func (s *homeScreen) refresh(app *appModel) {
 }
 
 func (s *homeScreen) view(app *appModel, width, height int) string {
-	leftWidth, rightWidth := splitContentWidths(width, 28, 24)
-	left := renderFlatColumn(t("Overview"), s.summary, leftWidth, height)
-	right := renderFlatColumn(t("Capabilities"), s.notes, rightWidth, height)
-	return joinFlatColumns(left, right, leftWidth, rightWidth)
+	leftWidth, _ := splitContentWidths(width, 28, 24)
+	return renderSplitBody(t("Overview"), s.summary, t("Capabilities"), s.notes, width, height, leftWidth)
 }
 
 func (s *homeScreen) help() string {
