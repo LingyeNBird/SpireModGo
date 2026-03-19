@@ -229,6 +229,8 @@
   "Uninstall:": "卸载：",
   "Installed:": "已安装：",
   "Switch User": "切换用户",
+  "Detected %d Steam user profiles": "检测到%d个steam用户信息",
+  "Steam ID": "steam id",
   "Click": "点击",
   "Use": "使用",
   "menu": "菜单",

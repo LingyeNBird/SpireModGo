@@ -233,6 +233,8 @@
   "Uninstall:": "Uninstall:",
   "Installed:": "Installed:",
   "Switch User": "Switch User",
+  "Detected %d Steam user profiles": "Detected %d Steam user profiles",
+  "Steam ID": "Steam ID",
   "Click": "click",
   "Use": "use",
   "menu": "menu",

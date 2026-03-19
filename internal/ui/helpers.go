@@ -53,6 +53,21 @@ func renderModListLabel(mod manager.ModPackage, selected bool) string {
 	return fmt.Sprintf("%s %s%s%s", checkbox, badge, mod.Label, status)
 }
 
+func renderModListEntry(mod manager.ModPackage, checked, selected, focused bool) string {
+	checkbox := "[ ]"
+	if checked {
+		checkbox = "[x]"
+	}
+	status := ""
+	switch {
+	case mod.Updatable:
+		status = t(" (update available locally)")
+	case mod.Installed:
+		status = t(" (installed)")
+	}
+	return renderModEntryLine(checkbox, mod.Label+status, mod.NeedsRepair, selected, focused)
+}
+
 func renderInstalledModListLabel(mod manager.InstalledMod, selected bool) string {
 	checkbox := "[ ]"
 	if selected {
@@ -63,6 +78,34 @@ func renderInstalledModListLabel(mod manager.InstalledMod, selected bool) string
 		badge = oldFormatBadgeStyle.Render("[?]") + " "
 	}
 	return fmt.Sprintf("%s %s%s", checkbox, badge, mod.Label)
+}
+
+func renderInstalledModListEntry(mod manager.InstalledMod, checked, selected, focused bool) string {
+	checkbox := "[ ]"
+	if checked {
+		checkbox = "[x]"
+	}
+	return renderModEntryLine(checkbox, mod.Label, mod.NeedsRepair, selected, focused)
+}
+
+func renderModEntryLine(checkbox, label string, needsRepair, selected, focused bool) string {
+	prefix := "  "
+	lineStyle := lipgloss.NewStyle()
+	if selected {
+		prefix = "> "
+		lineStyle = cursorStyle
+		if focused {
+			lineStyle = focusStyle
+		}
+	}
+	badge := ""
+	if needsRepair {
+		badge = oldFormatBadgeStyle.Render("[") + oldFormatBadgeStyle.Render("?") + oldFormatBadgeStyle.Render("]") + " "
+	}
+	if !selected {
+		return prefix + checkbox + " " + badge + label
+	}
+	return lineStyle.Render(prefix+checkbox+" ") + badge + lineStyle.Render(label)
 }
 
 func renderAvailableModDetail(mod manager.ModPackage) string {
@@ -351,4 +394,8 @@ func renderValueControlWithDetail(label, value, detail string, selected, focused
 		lines = append(lines, mutedStyle.Render(indent+"<"+detail+">"))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func padColumnText(text string, width int) string {
+	return text + strings.Repeat(" ", maxInt(0, width-lipgloss.Width(text)))
 }

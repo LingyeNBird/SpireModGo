@@ -23,6 +23,17 @@ type savesScreen struct {
 	err            string
 }
 
+type steamUserSelectorMetrics struct {
+	prefixWidth     int
+	labelWidth      int
+	leftArrowWidth  int
+	rightArrowWidth int
+	leftArrowStart  int
+	leftArrowEnd    int
+	rightArrowStart int
+	rightArrowEnd   int
+}
+
 func (s *savesScreen) refresh(app *appModel) {
 	if s.listCursor == 0 {
 		s.listCursor = 1
@@ -125,18 +136,20 @@ func (s *savesScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, 
 		localX, localY := x-layout.leftBody.x, y-layout.leftBody.y
 		s.section = 0
 		switch localY {
-		case 0, 1:
+		case 1:
 			s.listCursor = 0
-			if localX < layout.leftBody.width/2 {
+			metrics := buildSteamUserSelectorMetrics(s.selectedSteamProfile(app))
+			switch {
+			case localX >= metrics.leftArrowStart && localX < metrics.leftArrowEnd:
 				s.switchSteamProfile(app, -1)
-			} else {
+			case localX >= metrics.rightArrowStart && localX < metrics.rightArrowEnd:
 				s.switchSteamProfile(app, 1)
 			}
-		case 4, 5, 6:
-			s.listCursor = localY - 3
+		case 5, 6, 7:
+			s.listCursor = localY - 4
 			s.lastSlotCursor = s.listCursor
-		case 9, 10, 11:
-			s.listCursor = localY - 5
+		case 10, 11, 12:
+			s.listCursor = localY - 6
 			s.lastSlotCursor = s.listCursor
 		}
 		return nil
@@ -198,11 +211,51 @@ func (s *savesScreen) help() helpSection {
 
 func (s *savesScreen) renderLeftList(app *appModel, width int) string {
 	profile := s.selectedSteamProfile(app)
-	lines := []string{renderValueControlWithDetail(t("Switch User"), profile.DisplayName, profile.SteamID, s.listCursor == 0, app.focus == focusContent && s.section == 0), "", t("Vanilla Saves")}
+	lines := []string{renderSteamUserSelector(profile, len(s.steamProfiles), s.listCursor == 0, app.focus == focusContent && s.section == 0), "", t("Vanilla Saves")}
 	lines = append(lines, strings.Split(s.renderSaveSlotTable(manager.SaveTypeNormal, s.normalSlots, width, s.selectedTableSlot(manager.SaveTypeNormal), app.focus == focusContent && s.section == 0), "\n")...)
 	lines = append(lines, "", t("Modded Saves"))
 	lines = append(lines, strings.Split(s.renderSaveSlotTable(manager.SaveTypeModded, s.moddedSlots, width, s.selectedTableSlot(manager.SaveTypeModded), app.focus == focusContent && s.section == 0), "\n")...)
 	return strings.Join(lines, "\n")
+}
+
+func renderSteamUserSelector(profile manager.SteamProfile, count int, selected, focused bool) string {
+	metrics := buildSteamUserSelectorMetrics(profile)
+	lineStyle := lipgloss.NewStyle()
+	prefix := "  "
+	if selected {
+		prefix = "> "
+		lineStyle = cursorStyle
+		if focused {
+			lineStyle = focusStyle
+		}
+	}
+	leftArrow := saveSelectorArrowStyle.Render("[<]")
+	rightArrow := saveSelectorArrowStyle.Render("[>]")
+	leftGap := strings.Repeat(" ", metrics.leftArrowWidth)
+	rightGap := strings.Repeat(" ", metrics.rightArrowWidth)
+	line1 := mutedStyle.Render(t("Detected %d Steam user profiles", count))
+	line2 := lineStyle.Render(prefix+padColumnText(t("Switch User"), metrics.labelWidth)) + " " + leftArrow + " " + lineStyle.Render(profile.DisplayName) + " " + rightArrow
+	line3 := lineStyle.Render(strings.Repeat(" ", metrics.prefixWidth)+padColumnText(t("Steam ID"), metrics.labelWidth)) + " " + leftGap + " " + lineStyle.Render(profile.SteamID) + " " + rightGap
+	return strings.Join([]string{line1, line2, line3}, "\n")
+}
+
+func buildSteamUserSelectorMetrics(profile manager.SteamProfile) steamUserSelectorMetrics {
+	labelWidth := maxInt(lipgloss.Width(t("Switch User")), lipgloss.Width(t("Steam ID")))
+	prefixWidth := lipgloss.Width("> ")
+	leftArrowWidth := lipgloss.Width("[<]")
+	rightArrowWidth := lipgloss.Width("[>]")
+	leftArrowStart := prefixWidth + labelWidth + 1
+	rightArrowStart := leftArrowStart + leftArrowWidth + 1 + lipgloss.Width(profile.DisplayName) + 1
+	return steamUserSelectorMetrics{
+		prefixWidth:     prefixWidth,
+		labelWidth:      labelWidth,
+		leftArrowWidth:  leftArrowWidth,
+		rightArrowWidth: rightArrowWidth,
+		leftArrowStart:  leftArrowStart,
+		leftArrowEnd:    leftArrowStart + leftArrowWidth,
+		rightArrowStart: rightArrowStart,
+		rightArrowEnd:   rightArrowStart + rightArrowWidth,
+	}
 }
 
 func (s *savesScreen) selectedSteamProfile(app *appModel) manager.SteamProfile {

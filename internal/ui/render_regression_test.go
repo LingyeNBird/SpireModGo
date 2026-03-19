@@ -106,11 +106,62 @@ func TestModsTabIndexAtUsesRenderedTabWidths(tt *testing.T) {
 	loadTestLocalizer(tt)
 	screen := modsScreen{tab: modsTabAvailable}
 	labels := screen.tabLabels()
-	availableWidth := lipgloss.Width(formatButtonLabel(labels[0]))
+	availableWidth := lipgloss.Width(formatModsTabLabel(labels[0], true))
 	installedStart := availableWidth + 1
-	installedCenter := installedStart + lipgloss.Width(formatButtonLabel(labels[1]))/2
+	installedCenter := installedStart + lipgloss.Width(formatModsTabLabel(labels[1], false))/2
 	if got := screen.tabIndexAt(installedCenter); got != 1 {
 		tt.Fatalf("expected installed-tab hit to map to index 1, got %d", got)
+	}
+	screen.tab = modsTabInstalled
+	installedWidth := lipgloss.Width(formatModsTabLabel(labels[1], true))
+	availableCenter := lipgloss.Width(formatModsTabLabel(labels[0], false)) / 2
+	if got := screen.tabIndexAt(availableCenter); got != 0 {
+		tt.Fatalf("expected available-tab hit to map to index 0 after switching tabs, got %d", got)
+	}
+	if got := screen.tabIndexAt(lipgloss.Width(formatModsTabLabel(labels[0], false))); got != -1 {
+		tt.Fatalf("expected separator gap to stay non-clickable after switching tabs, got %d", got)
+	}
+	if installedWidth != lipgloss.Width(formatModsTabLabel(labels[1], false)) {
+		tt.Fatalf("expected installed tab to reserve equal width across active states")
+	}
+}
+
+func TestRenderModsTabsKeepsStableLabelPositionsAcrossSelection(tt *testing.T) {
+	loadTestLocalizer(tt)
+	screen := modsScreen{
+		tab:       modsTabAvailable,
+		available: make([]manager.ModPackage, 4),
+		installed: make([]manager.InstalledMod, 0),
+	}
+	labels := screen.tabLabels()
+	availableActive := ansi.Strip(screen.renderTabs())
+	screen.tab = modsTabInstalled
+	installedActive := ansi.Strip(screen.renderTabs())
+	for _, label := range labels {
+		availableParts := strings.SplitN(availableActive, label, 2)
+		installedParts := strings.SplitN(installedActive, label, 2)
+		if len(availableParts) != 2 || len(installedParts) != 2 {
+			tt.Fatalf("expected tab label %q in both renders, got %q and %q", label, availableActive, installedActive)
+		}
+		if lipgloss.Width(availableParts[0]) != lipgloss.Width(installedParts[0]) {
+			tt.Fatalf("expected tab label %q to keep its horizontal anchor, got %q and %q", label, availableActive, installedActive)
+		}
+	}
+}
+
+func TestRenderModsTabUsesSidebarStyleInsteadOfButtonBrackets(tt *testing.T) {
+	loadTestLocalizer(tt)
+	screen := modsScreen{tab: modsTabAvailable}
+	labels := screen.tabLabels()
+	tabs := ansi.Strip(screen.renderTabs())
+	if !strings.Contains(tabs, "> "+labels[0]+" <") {
+		tt.Fatalf("expected active tab to use sidebar-style markers, got %q", tabs)
+	}
+	if strings.Contains(tabs, formatButtonLabel(labels[0])) || strings.Contains(tabs, formatButtonLabel(labels[1])) {
+		tt.Fatalf("expected tab rendering to avoid button brackets, got %q", tabs)
+	}
+	if !strings.Contains(tabs, labels[1]) {
+		tt.Fatalf("expected inactive tab text to remain visible, got %q", tabs)
 	}
 }
 
@@ -121,17 +172,31 @@ func TestRenderValueControlUsesSharedSelectorShape(tt *testing.T) {
 	}
 }
 
-func TestRenderValueControlWithDetailShowsSecondaryLine(tt *testing.T) {
-	got := ansi.Strip(renderValueControlWithDetail("Switch User", "Alice", "76561198000000001", true, true))
-	lines := strings.Split(got, "\n")
-	if len(lines) != 2 {
-		tt.Fatalf("expected two-line selector, got %d lines: %q", len(lines), got)
+func TestRenderSteamUserSelectorUsesThreeAlignedRows(tt *testing.T) {
+	loadTestLocalizer(tt)
+	got := renderSteamUserSelector(manager.SteamProfile{DisplayName: "Alice", SteamID: "1234567890"}, 3, true, true)
+	plain := ansi.Strip(got)
+	lines := strings.Split(plain, "\n")
+	if len(lines) != 3 {
+		tt.Fatalf("expected three-line selector, got %d lines: %q", len(lines), plain)
 	}
-	if lines[0] != "> Switch User  [ < Alice > ]" {
-		tt.Fatalf("expected user selector line, got %q", lines[0])
+	if lines[0] != "检测到3个steam用户信息" && lines[0] != "Detected 3 Steam user profiles" {
+		tt.Fatalf("unexpected user count line: %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "<76561198000000001>") {
-		tt.Fatalf("expected detail line to contain steam id, got %q", lines[1])
+	if !strings.Contains(lines[1], "切换用户") && !strings.Contains(lines[1], "Switch User") {
+		tt.Fatalf("expected selector label on second line, got %q", lines[1])
+	}
+	if !strings.Contains(lines[1], "[<]") || !strings.Contains(lines[1], "[>]") {
+		tt.Fatalf("expected arrow controls on second line, got %q", lines[1])
+	}
+	if !strings.Contains(lines[2], "steam id") && !strings.Contains(lines[2], "Steam ID") {
+		tt.Fatalf("expected steam id label on third line, got %q", lines[2])
+	}
+	if !strings.Contains(lines[2], "1234567890") {
+		tt.Fatalf("expected steam id value on third line, got %q", lines[2])
+	}
+	if !strings.Contains(got, saveSelectorArrowStyle.Render("[<]")) || !strings.Contains(got, saveSelectorArrowStyle.Render("[>]")) {
+		tt.Fatalf("expected arrows to use blue selector style, got %q", got)
 	}
 }
 
@@ -140,15 +205,28 @@ func TestRenderModListLabelPrefixesRepairBadge(tt *testing.T) {
 	if ansi.Strip(label) != "[ ] [?] DamageMeter v1.0.0" {
 		tt.Fatalf("expected repair badge in available label, got %q", label)
 	}
-	if !strings.Contains(label, oldFormatBadgeStyle.Render("[?]")) {
+	if !strings.Contains(label, oldFormatBadgeStyle.Render("[")) || !strings.Contains(label, oldFormatBadgeStyle.Render("?")) || !strings.Contains(label, oldFormatBadgeStyle.Render("]")) {
 		tt.Fatalf("expected available repair badge to use old-format badge style, got %q", label)
 	}
 	installed := renderInstalledModListLabel(manager.InstalledMod{Label: "DamageMeter v1.0.0", NeedsRepair: true}, true)
 	if ansi.Strip(installed) != "[x] [?] DamageMeter v1.0.0" {
 		tt.Fatalf("expected repair badge in installed label, got %q", installed)
 	}
-	if !strings.Contains(installed, oldFormatBadgeStyle.Render("[?]")) {
+	if !strings.Contains(installed, oldFormatBadgeStyle.Render("[")) || !strings.Contains(installed, oldFormatBadgeStyle.Render("?")) || !strings.Contains(installed, oldFormatBadgeStyle.Render("]")) {
 		tt.Fatalf("expected installed repair badge to use old-format badge style, got %q", installed)
+	}
+}
+
+func TestRenderModListEntryKeepsSelectedColorAfterRepairBadge(tt *testing.T) {
+	line := renderModListEntry(manager.ModPackage{Label: "DamageMeter v1.0.0", NeedsRepair: true}, false, true, true)
+	if ansi.Strip(line) != "> [ ] [?] DamageMeter v1.0.0" {
+		tt.Fatalf("expected selected mod entry text, got %q", ansi.Strip(line))
+	}
+	if !strings.Contains(line, oldFormatBadgeStyle.Render("[")) || !strings.Contains(line, oldFormatBadgeStyle.Render("?")) || !strings.Contains(line, oldFormatBadgeStyle.Render("]")) {
+		tt.Fatalf("expected badge chars to be individually styled red, got %q", line)
+	}
+	if !strings.Contains(line, focusStyle.Render("DamageMeter v1.0.0")) {
+		tt.Fatalf("expected label to retain selected/focused color after badge, got %q", line)
 	}
 }
 
@@ -179,6 +257,23 @@ func TestModsScreenViewShowsRepairWarningAboveButton(tt *testing.T) {
 	}
 	if strings.Index(ansi.Strip(view), warning) > strings.Index(ansi.Strip(view), formatButtonLabel(t("Repair Mod"))) {
 		tt.Fatalf("expected repair warning above button, got %q", ansi.Strip(view))
+	}
+}
+
+func TestRenderRepairHeaderWrapsWarningText(tt *testing.T) {
+	loadTestLocalizer(tt)
+	screen := modsScreen{tab: modsTabAvailable, available: []manager.ModPackage{{NeedsRepair: true}}}
+	lines := screen.renderRepairHeader(18)
+	if len(lines) < 4 {
+		tt.Fatalf("expected wrapped warning plus button, got %d lines: %q", len(lines), lines)
+	}
+	if screen.repairButtonRow(18) != len(lines)-2 {
+		tt.Fatalf("expected repair button row to follow wrapped warning lines, got %d for %q", screen.repairButtonRow(18), lines)
+	}
+	for _, line := range lines[:len(lines)-2] {
+		if !strings.Contains(line, errorStyle.Render(ansi.Strip(line))) {
+			tt.Fatalf("expected wrapped warning lines to stay red, got %q", line)
+		}
 	}
 }
 
@@ -261,13 +356,15 @@ func TestCurrentHelpOmitsHomeSection(tt *testing.T) {
 func TestNewTranslationKeysResolve(tt *testing.T) {
 	loadTestLocalizer(tt)
 	checks := map[string]string{
-		t("Installed [%d]", 0):        "已安装[0]",
-		t("Type: %s", t("Vanilla")):   "类型：原版",
-		t("Slot: %d", 1):              "槽位：1",
-		t("Status: %s", t("(empty)")): "状态：（空）",
-		t("Save Actions"):             "存档操作",
-		t("Steam profiles: %d", 1):    "Steam 档案：1",
-		t("%d backups", 0):            "0个备份",
+		t("Installed [%d]", 0):                  "已安装[0]",
+		t("Type: %s", t("Vanilla")):             "类型：原版",
+		t("Slot: %d", 1):                        "槽位：1",
+		t("Status: %s", t("(empty)")):           "状态：（空）",
+		t("Save Actions"):                       "存档操作",
+		t("Steam profiles: %d", 1):              "Steam 档案：1",
+		t("Detected %d Steam user profiles", 3): "检测到3个steam用户信息",
+		t("Steam ID"):                           "steam id",
+		t("%d backups", 0):                      "0个备份",
 		t("This mod format seems incompatible with the new Slay the Spire version. Click to repair."): "该模组格式似乎不兼容新版本杀戮尖塔，点击以修复。",
 	}
 	for got, want := range checks {

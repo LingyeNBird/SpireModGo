@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"slaymodgo/internal/manager"
 )
@@ -113,7 +114,7 @@ func (s *modsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, h
 		if layout.rightBody.contains(x, y) {
 			localX := x - layout.rightBody.x
 			localY := y - layout.rightBody.y
-			if localY == 0 && s.currentNeedsRepair() {
+			if localY == s.repairButtonRow(layout.rightBody.width) && s.currentNeedsRepair() {
 				if inlineButtonIndexAt([]string{t("Repair Mod")}, localX) == 0 {
 					s.repairCurrent(app)
 				}
@@ -285,17 +286,17 @@ func (s *modsScreen) view(app *appModel, width, height int) string {
 			return renderSplitBody(t("Mod Management"), strings.Join([]string{tabLine, "", s.availableErr}, "\n"), t("Mod Details"), t("Failed to load available packages:\n\n%s", s.availableErr), width, height, leftWidth)
 		}
 		items := make([]string, 0, len(s.available))
-		for _, mod := range s.available {
-			items = append(items, renderModListLabel(mod, s.availableSelected[mod.InstallName]))
+		for idx, mod := range s.available {
+			items = append(items, renderModListEntry(mod, s.availableSelected[mod.InstallName], idx == s.availableCursor, app.focus == focusContent))
 		}
 		detail := t("No packages were found in the bundled Mods directory.")
 		if len(s.available) > 0 {
 			detail = wrapBodyText(renderAvailableModDetail(s.available[s.availableCursor]), layout.rightBody.width)
 		}
 		if s.currentNeedsRepair() {
-			detail = strings.Join([]string{errorStyle.Render(t("This mod format seems incompatible with the new Slay the Spire version. Click to repair.")), renderInlineButton(t("Repair Mod"), false, false), "", detail}, "\n")
+			detail = strings.Join(append(s.renderRepairHeader(layout.rightBody.width), detail), "\n")
 		}
-		leftBody := strings.Join([]string{tabLine, "", actionLine, renderList(items, s.availableCursor, app.focus == focusContent)}, "\n")
+		leftBody := strings.Join([]string{tabLine, "", actionLine, renderModsList(items)}, "\n")
 		return renderSplitBody(t("Mod Management"), leftBody, t("Mod Details"), detail, width, height, leftWidth)
 	}
 	detail := t("No installed mods were found in the game's mods directory.")
@@ -303,17 +304,34 @@ func (s *modsScreen) view(app *appModel, width, height int) string {
 		detail = wrapBodyText(s.installedErr+"\n\n"+t("Open Settings to configure the game path before uninstalling."), layout.rightBody.width)
 	}
 	items := make([]string, 0, len(s.installed))
-	for _, mod := range s.installed {
-		items = append(items, renderInstalledModListLabel(mod, s.installedSelected[mod.DirName]))
+	for idx, mod := range s.installed {
+		items = append(items, renderInstalledModListEntry(mod, s.installedSelected[mod.DirName], idx == s.installedCursor, app.focus == focusContent))
 	}
 	if s.installedErr == "" && len(s.installed) > 0 {
 		detail = wrapBodyText(renderInstalledModDetail(s.installed[s.installedCursor]), layout.rightBody.width)
 	}
 	if s.currentNeedsRepair() {
-		detail = strings.Join([]string{errorStyle.Render(t("This mod format seems incompatible with the new Slay the Spire version. Click to repair.")), renderInlineButton(t("Repair Mod"), false, false), "", detail}, "\n")
+		detail = strings.Join(append(s.renderRepairHeader(layout.rightBody.width), detail), "\n")
 	}
-	leftBody := strings.Join([]string{tabLine, "", actionLine, renderList(items, s.installedCursor, app.focus == focusContent)}, "\n")
+	leftBody := strings.Join([]string{tabLine, "", actionLine, renderModsList(items)}, "\n")
 	return renderSplitBody(t("Mod Management"), leftBody, t("Mod Details"), detail, width, height, leftWidth)
+}
+
+func (s *modsScreen) renderRepairHeader(width int) []string {
+	warningLines := strings.Split(wrapBodyText(t("This mod format seems incompatible with the new Slay the Spire version. Click to repair."), width), "\n")
+	lines := make([]string, 0, len(warningLines)+2)
+	for _, line := range warningLines {
+		lines = append(lines, errorStyle.Render(line))
+	}
+	lines = append(lines, renderInlineButton(t("Repair Mod"), false, false), "")
+	return lines
+}
+
+func (s *modsScreen) repairButtonRow(width int) int {
+	if !s.currentNeedsRepair() {
+		return -1
+	}
+	return len(strings.Split(wrapBodyText(t("This mod format seems incompatible with the new Slay the Spire version. Click to repair."), width), "\n"))
 }
 
 func (s *modsScreen) currentNeedsRepair() bool {
@@ -369,7 +387,12 @@ func (s *modsScreen) actionIndexAt(localX int) int {
 }
 
 func (s *modsScreen) renderTabs() string {
-	return renderInlineButtonGroup(s.tabLabels(), int(s.tab), false)
+	labels := s.tabLabels()
+	rendered := make([]string, 0, len(labels))
+	for idx, label := range labels {
+		rendered = append(rendered, renderModsTabLabel(label, idx == int(s.tab)))
+	}
+	return strings.Join(rendered, " ")
 }
 
 func (s *modsScreen) tabLabels() []string {
@@ -377,7 +400,41 @@ func (s *modsScreen) tabLabels() []string {
 }
 
 func (s *modsScreen) tabIndexAt(localX int) int {
-	return inlineButtonIndexAt(s.tabLabels(), localX)
+	labels := s.tabLabels()
+	offset := 0
+	for idx, label := range labels {
+		width := lipgloss.Width(formatModsTabLabel(label, idx == int(s.tab)))
+		if localX >= offset && localX < offset+width {
+			return idx
+		}
+		offset += width
+		if idx < len(labels)-1 {
+			offset++
+		}
+	}
+	return -1
+}
+
+func formatModsTabLabel(label string, active bool) string {
+	if active {
+		return "> " + label + " <"
+	}
+	return "  " + label + "  "
+}
+
+func renderModsTabLabel(label string, active bool) string {
+	text := formatModsTabLabel(label, active)
+	if active {
+		return navActiveStyle.Render(text)
+	}
+	return navItemStyle.Render(text)
+}
+
+func renderModsList(items []string) string {
+	if len(items) == 0 {
+		return mutedStyle.Render(t("(empty)"))
+	}
+	return strings.Join(items, "\n")
 }
 
 func (s *modsScreen) renderActions() string {
