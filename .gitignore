@@ -1,4 +1,5 @@
-SlayModGo.exe
+SpireModGo.exe
+dist/
 logs/
 NUL
 modmanager.json
