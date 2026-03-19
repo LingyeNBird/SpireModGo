@@ -208,9 +208,24 @@ func (s *settingsScreen) view(app *appModel, width, height int) string {
 	return renderSplitBody(t("Actions"), leftBody, t("Current Paths and State"), summary, width, height, leftWidth)
 }
 
-func (s *settingsScreen) help() string {
+func (s *settingsScreen) help() helpSection {
 	if s.editing {
-		return t("Settings: click or type path | enter finish edit | esc cancel edit")
+		return helpSection{
+			Title: t("Settings:"),
+			Items: []helpItem{
+				{Action: t("Click"), Description: t("or type path")},
+				{Action: t("Enter"), Description: t("finish edit")},
+				{Action: t("Esc"), Description: t("cancel edit")},
+			},
+		}
 	}
-	return t("Settings: click path or actions | up/down action | e edit path | enter run action")
+	return helpSection{
+		Title: t("Settings:"),
+		Items: []helpItem{
+			{Action: t("Click"), Description: t("path or actions")},
+			{Action: t("up/down"), Description: t("action")},
+			{Action: t("e"), Description: t("edit path")},
+			{Action: t("Enter"), Description: t("run action")},
+		},
+	}
 }

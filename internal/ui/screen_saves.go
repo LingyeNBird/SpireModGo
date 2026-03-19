@@ -182,8 +182,18 @@ func (s *savesScreen) view(app *appModel, width, height int) string {
 	return renderSplitBody(t("Save List"), leftBody, t("Save Management"), rightBody, width, height, leftWidth)
 }
 
-func (s *savesScreen) help() string {
-	return t("Saves: left/right switch Steam profile | click slots and backups | c copy | b backup | r restore | x delete backup")
+func (s *savesScreen) help() helpSection {
+	return helpSection{
+		Title: t("Saves:"),
+		Items: []helpItem{
+			{Action: t("left/right"), Description: t("switch Steam profile")},
+			{Action: t("Click"), Description: t("slots and backups")},
+			{Action: t("c"), Description: t("copy")},
+			{Action: t("b"), Description: t("backup")},
+			{Action: t("r"), Description: t("restore")},
+			{Action: t("x"), Description: t("delete backup")},
+		},
+	}
 }
 
 func (s *savesScreen) renderLeftList(app *appModel, width int) string {

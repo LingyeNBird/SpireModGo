@@ -141,6 +141,15 @@ func (s *installScreen) view(app *appModel, width, height int) string {
 	return renderSplitBody(t("Packages"), leftBody, t("Package Details"), renderAvailableModDetail(s.mods[s.cursor]), width, height, leftWidth)
 }
 
-func (s *installScreen) help() string {
-	return t("Install: click package rows or action buttons | up/down move | space toggle | i install selected | a install all")
+func (s *installScreen) help() helpSection {
+	return helpSection{
+		Title: t("Install:"),
+		Items: []helpItem{
+			{Action: t("Click"), Description: t("package rows or action buttons")},
+			{Action: t("up/down"), Description: t("move")},
+			{Action: t("space"), Description: t("toggle")},
+			{Action: t("i"), Description: t("install selected")},
+			{Action: t("a"), Description: t("install all")},
+		},
+	}
 }

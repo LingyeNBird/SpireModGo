@@ -76,6 +76,9 @@ func (s *homeScreen) view(app *appModel, width, height int) string {
 	return renderSplitBody(t("Information Overview"), overview, t("Feature Guide"), guide, width, height, leftWidth)
 }
 
-func (s *homeScreen) help() string {
-	return t("Home: use the sidebar to switch pages")
+func (s *homeScreen) help() helpSection {
+	return helpSection{
+		Title: t("Home:"),
+		Items: []helpItem{{Action: t("Use"), Description: t("the sidebar to switch pages")}},
+	}
 }

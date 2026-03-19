@@ -327,6 +327,16 @@ func (s *modsScreen) renderActions() string {
 	return renderInlineButtonGroup(s.actionLabels(), -1, false)
 }
 
-func (s *modsScreen) help() string {
-	return t("Mods: left/right switch tab | click tabs and actions | up/down move | space toggle | i install | d uninstall")
+func (s *modsScreen) help() helpSection {
+	return helpSection{
+		Title: t("Mods:"),
+		Items: []helpItem{
+			{Action: t("left/right"), Description: t("switch tab")},
+			{Action: t("Click"), Description: t("tabs and actions")},
+			{Action: t("up/down"), Description: t("move")},
+			{Action: t("space"), Description: t("toggle")},
+			{Action: t("i"), Description: t("install")},
+			{Action: t("d"), Description: t("uninstall")},
+		},
+	}
 }

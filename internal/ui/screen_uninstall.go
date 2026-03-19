@@ -152,6 +152,15 @@ func (s *uninstallScreen) view(app *appModel, width, height int) string {
 	return renderSplitBody(t("Installed Mods"), leftBody, t("Removal Details"), renderInstalledModDetail(s.mods[s.cursor]), width, height, leftWidth)
 }
 
-func (s *uninstallScreen) help() string {
-	return t("Uninstall: click rows or action buttons | up/down move | space toggle | d remove selected | x remove all")
+func (s *uninstallScreen) help() helpSection {
+	return helpSection{
+		Title: t("Uninstall:"),
+		Items: []helpItem{
+			{Action: t("Click"), Description: t("rows or action buttons")},
+			{Action: t("up/down"), Description: t("move")},
+			{Action: t("space"), Description: t("toggle")},
+			{Action: t("d"), Description: t("remove selected")},
+			{Action: t("x"), Description: t("remove all")},
+		},
+	}
 }

@@ -68,6 +68,12 @@ func (s *installedScreen) view(app *appModel, width, height int) string {
 	return renderSplitBody(t("Installed Mods"), renderList(items, s.cursor, app.focus == focusContent), t("Mod Details"), renderInstalledModDetail(s.mods[s.cursor]), width, height, leftWidth)
 }
 
-func (s *installedScreen) help() string {
-	return t("Installed: click rows or use up/down move")
+func (s *installedScreen) help() helpSection {
+	return helpSection{
+		Title: t("Installed:"),
+		Items: []helpItem{
+			{Action: t("Click"), Description: t("rows")},
+			{Action: t("up/down"), Description: t("move")},
+		},
+	}
 }

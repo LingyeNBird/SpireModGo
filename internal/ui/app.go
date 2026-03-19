@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"slaymodgo/internal/manager"
@@ -43,6 +44,21 @@ type appModel struct {
 	mods     modsScreen
 	saves    savesScreen
 	settings settingsScreen
+}
+
+type helpItem struct {
+	Action      string
+	Description string
+}
+
+type helpSection struct {
+	Title string
+	Items []helpItem
+}
+
+type helpCell struct {
+	text  string
+	style lipgloss.Style
 }
 
 func NewApp(mgr *manager.Manager) *App {
@@ -124,9 +140,10 @@ func (m *appModel) View() string {
 	menu := renderPanel(t("Menu"), menuBody, m.layout.menu.frame.width, m.layout.menu.frame.height)
 	content := m.renderCurrentScreen(m.layout.page.frame.width, m.layout.page.frame.height)
 	activity := renderPanel(t("Activity Log"), m.logs.View(), m.layout.log.frame.width, m.layout.log.frame.height)
-	help := renderPanel(t("Help"), m.renderHelp(), m.layout.help.frame.width, m.layout.help.frame.height)
+	help := renderPanel(t("Help"), m.renderHelpBody(m.layout.help.body.width), m.layout.help.frame.width, m.layout.help.frame.height)
+	left := strings.Join([]string{menu, help}, "\n")
 	right := strings.Join([]string{content, activity}, "\n")
-	shell := strings.Join([]string{joinColumns(menu, right, m.layout.menu.frame.width, m.layout.page.frame.width), help}, "\n")
+	shell := joinColumns(left, right, m.layout.menu.frame.width, m.layout.page.frame.width)
 
 	if m.modal.open {
 		return overlayModal(shell, renderModal(m.width, m.height, m.modal), m.width, m.height)
@@ -318,19 +335,145 @@ func (m *appModel) renderCurrentScreen(width, height int) string {
 }
 
 func (m *appModel) renderHelp() string {
-	common := t("Global: click menu | click actions | Tab cycle panes | Esc return menu | Ctrl+L toggle language | F5 refresh | q quit")
-	screenHelp := ""
+	sections := []helpSection{m.globalHelp(), m.currentHelp()}
+	lines := make([]string, 0, 16)
+	for _, section := range sections {
+		lines = append(lines, renderHelpSection(section)...)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *appModel) renderHelpBody(width int) string {
+	sections := []helpSection{m.globalHelp(), m.currentHelp()}
+	lines := make([]string, 0, 16)
+	for _, section := range sections {
+		lines = append(lines, renderWrappedHelpSection(section, width)...)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *appModel) globalHelp() helpSection {
+	return helpSection{
+		Title: t("Global:"),
+		Items: []helpItem{
+			{Action: t("Click"), Description: t("menu")},
+			{Action: t("Click"), Description: t("action items")},
+			{Action: t("Tab"), Description: t("cycle panes")},
+			{Action: t("Esc"), Description: t("return to menu")},
+			{Action: t("Ctrl+L"), Description: t("toggle language")},
+			{Action: t("F5"), Description: t("refresh")},
+			{Action: t("q"), Description: t("quit")},
+		},
+	}
+}
+
+func (m *appModel) currentHelp() helpSection {
 	switch m.current {
 	case screenMods:
-		screenHelp = m.mods.help()
+		return m.mods.help()
 	case screenSaves:
-		screenHelp = m.saves.help()
+		return m.saves.help()
 	case screenSettings:
-		screenHelp = m.settings.help()
+		return m.settings.help()
 	default:
-		screenHelp = m.home.help()
+		return helpSection{}
 	}
-	return common + "  •  " + screenHelp
+}
+
+func renderHelpSection(section helpSection) []string {
+	lines := make([]string, 0, len(section.Items)+1)
+	if section.Title != "" {
+		lines = append(lines, renderHelpCells(buildHelpCells(section.Title, helpScopeStyle)))
+	}
+	for _, item := range section.Items {
+		lines = append(lines, renderHelpItem(item))
+	}
+	return lines
+}
+
+func renderWrappedHelpSection(section helpSection, width int) []string {
+	lines := make([]string, 0, len(section.Items)+1)
+	if section.Title != "" {
+		lines = append(lines, wrapHelpCells(buildHelpCells(section.Title, helpScopeStyle), width)...)
+	}
+	for _, item := range section.Items {
+		lines = append(lines, renderWrappedHelpItem(item, width)...)
+	}
+	return lines
+}
+
+func renderHelpItem(item helpItem) string {
+	return renderHelpCells(buildHelpItemCells(item))
+}
+
+func renderWrappedHelpItem(item helpItem, width int) []string {
+	return wrapHelpCells(buildHelpItemCells(item), width)
+}
+
+func buildHelpItemCells(item helpItem) []helpCell {
+	cells := make([]helpCell, 0, len(item.Action)+len(item.Description)+2)
+	if item.Action != "" {
+		cells = append(cells, buildHelpCells("{"+item.Action+"}", helpActionStyle)...)
+	}
+	if item.Description != "" {
+		cells = append(cells, buildHelpCells(item.Description, helpTextStyle)...)
+	}
+	return cells
+}
+
+func buildHelpCells(text string, style lipgloss.Style) []helpCell {
+	if text == "" {
+		return nil
+	}
+	cells := make([]helpCell, 0, len(text))
+	for _, r := range text {
+		cells = append(cells, helpCell{text: string(r), style: style})
+	}
+	return cells
+}
+
+func wrapHelpCells(cells []helpCell, width int) []string {
+	width = maxInt(1, width)
+	if len(cells) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, 4)
+	line := make([]helpCell, 0, width)
+	used := 0
+	flush := func() {
+		if len(line) == 0 {
+			return
+		}
+		lines = append(lines, renderHelpCells(line))
+		line = make([]helpCell, 0, width)
+		used = 0
+	}
+	for _, cell := range cells {
+		cellWidth := lipgloss.Width(cell.text)
+		if cellWidth == 0 {
+			line = append(line, cell)
+			continue
+		}
+		if used > 0 && used+cellWidth > width {
+			flush()
+		}
+		line = append(line, cell)
+		used += cellWidth
+	}
+	flush()
+	return lines
+}
+
+func renderHelpCells(cells []helpCell) string {
+	var builder strings.Builder
+	for _, cell := range cells {
+		builder.WriteString(cell.style.Render(cell.text))
+	}
+	return builder.String()
+}
+
+func renderHelpActionToken(action string) string {
+	return renderHelpCells(buildHelpCells("{"+action+"}", helpActionStyle))
 }
 
 func (m *appModel) resizeLogViewport() {
@@ -344,27 +487,25 @@ func (m *appModel) resizeLogViewport() {
 func (m *appModel) computeLayout() shellLayout {
 	width := maxInt(40, m.width)
 	height := maxInt(12, m.height)
-	helpHeight := 3
-	if height < 16 {
-		helpHeight = 2
-	}
-	topHeight := maxInt(9, height-helpHeight)
 	menuWidth := clampInt(width/5, 18, 26)
 	if width < 80 {
 		menuWidth = clampInt(width/4, 16, 22)
 	}
 	rightWidth := maxInt(20, width-menuWidth)
-	logHeight := clampInt(topHeight/4, 4, 8)
-	pageHeight := topHeight - logHeight
+	menuHeight := maxInt(6, (height+1)/2)
+	helpHeight := maxInt(3, height-menuHeight)
+	menuHeight = height - helpHeight
+	logHeight := clampInt(height/4, 4, 8)
+	pageHeight := height - logHeight
 	if pageHeight < 6 {
 		pageHeight = 6
-		logHeight = maxInt(3, topHeight-pageHeight)
+		logHeight = maxInt(3, height-pageHeight)
 	}
 	return shellLayout{
-		menu: newPanelLayout(0, 0, menuWidth, topHeight),
+		menu: newPanelLayout(0, 0, menuWidth, menuHeight),
 		page: newPanelLayout(menuWidth, 0, rightWidth, pageHeight),
 		log:  newPanelLayout(menuWidth, pageHeight, rightWidth, logHeight),
-		help: newPanelLayout(0, topHeight, width, helpHeight),
+		help: newPanelLayout(0, menuHeight, menuWidth, helpHeight),
 	}
 }
 

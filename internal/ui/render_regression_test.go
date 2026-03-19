@@ -121,6 +121,82 @@ func TestRenderValueControlUsesSharedSelectorShape(tt *testing.T) {
 	}
 }
 
+func TestComputeLayoutStacksHelpBelowMenu(tt *testing.T) {
+	m := &appModel{width: 120, height: 40}
+	layout := m.computeLayout()
+	if layout.menu.frame.width != layout.help.frame.width {
+		tt.Fatalf("expected menu/help to share sidebar width, got %d and %d", layout.menu.frame.width, layout.help.frame.width)
+	}
+	if layout.help.frame.x != 0 || layout.help.frame.y != layout.menu.frame.height {
+		tt.Fatalf("expected help below menu in left column, got help frame %+v and menu frame %+v", layout.help.frame, layout.menu.frame)
+	}
+	if layout.menu.frame.height+layout.help.frame.height != 40 {
+		tt.Fatalf("expected sidebar heights to fill full window, got %d", layout.menu.frame.height+layout.help.frame.height)
+	}
+	if layout.page.frame.x != layout.menu.frame.width || layout.log.frame.x != layout.menu.frame.width {
+		tt.Fatalf("expected right panes to start after sidebar, got page %+v log %+v", layout.page.frame, layout.log.frame)
+	}
+	if layout.page.frame.height+layout.log.frame.height != 40 {
+		tt.Fatalf("expected right panes to fill full window height, got %d", layout.page.frame.height+layout.log.frame.height)
+	}
+}
+
+func TestRenderHelpUsesStructuredSections(tt *testing.T) {
+	loadTestLocalizer(tt)
+	m := &appModel{current: screenMods}
+	global := m.globalHelp()
+	if global.Title != "全局：" && global.Title != "Global:" {
+		tt.Fatalf("expected structured global title, got %q", global.Title)
+	}
+	if len(global.Items) != 7 {
+		tt.Fatalf("expected 7 structured global help items, got %d", len(global.Items))
+	}
+	first := renderHelpSection(global)
+	if first[0] != renderHelpCells(buildHelpCells(global.Title, helpScopeStyle)) {
+		tt.Fatalf("expected scope title to use scope style, got %q", first[0])
+	}
+	if first[1] != renderHelpActionToken(t("Click"))+renderHelpCells(buildHelpCells(t("menu"), helpTextStyle)) {
+		tt.Fatalf("expected first structured action line, got %q", first[1])
+	}
+	if first[3] != renderHelpActionToken(t("Tab"))+renderHelpCells(buildHelpCells(t("cycle panes"), helpTextStyle)) {
+		tt.Fatalf("expected Tab action to use structured rendering, got %q", first[3])
+	}
+	full := m.renderHelp()
+	if !strings.Contains(full, "\n") {
+		tt.Fatalf("expected rendered help to span multiple lines, got %q", full)
+	}
+	if !strings.Contains(full, renderHelpCells(buildHelpCells(t("Mods:"), helpScopeStyle))+"\n"+renderHelpActionToken(t("left/right"))+renderHelpCells(buildHelpCells(t("switch tab"), helpTextStyle))) {
+		tt.Fatalf("expected screen-specific help to remain present, got %q", full)
+	}
+}
+
+func TestRenderHelpActionTokenUsesYellowStyle(tt *testing.T) {
+	got := renderHelpActionToken("Ctrl+L")
+	if got != helpActionStyle.Render("{Ctrl+L}") {
+		tt.Fatalf("expected yellow help token, got %q", got)
+	}
+}
+
+func TestRenderWrappedHelpItemKeepsContinuationPlain(tt *testing.T) {
+	lines := renderWrappedHelpItem(helpItem{Action: "使用", Description: "左侧栏切换页面"}, lipgloss.Width("{使用}左侧栏切换"))
+	if len(lines) != 2 {
+		tt.Fatalf("expected wrapped help item to span 2 lines, got %d: %q", len(lines), lines)
+	}
+	if lines[0] != renderHelpActionToken("使用")+renderHelpCells(buildHelpCells("左侧栏切换", helpTextStyle)) {
+		tt.Fatalf("expected first line to keep styled token, got %q", lines[0])
+	}
+	if lines[1] != renderHelpCells(buildHelpCells("页面", helpTextStyle)) {
+		tt.Fatalf("expected continuation line to use help text style, got %q", lines[1])
+	}
+}
+
+func TestCurrentHelpOmitsHomeSection(tt *testing.T) {
+	m := &appModel{current: screenHome}
+	if got := m.currentHelp(); got.Title != "" || len(got.Items) != 0 {
+		tt.Fatalf("expected home screen to omit page-specific help, got %+v", got)
+	}
+}
+
 func TestNewTranslationKeysResolve(tt *testing.T) {
 	loadTestLocalizer(tt)
 	checks := map[string]string{
