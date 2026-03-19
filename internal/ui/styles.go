@@ -29,6 +29,7 @@ var (
 	modalBoxStyle        = lipgloss.NewStyle().Border(lipgloss.DoubleBorder()).BorderForeground(lipgloss.Color("81")).Padding(1, 2).Background(lipgloss.Color("236")).Foreground(lipgloss.Color("230"))
 	buttonStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
 	buttonActiveStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("24"))
+	buttonFocusStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("31"))
 	cursorStyle          = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("117"))
 	selectedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
 	focusStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("221"))

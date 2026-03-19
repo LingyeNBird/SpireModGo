@@ -120,13 +120,7 @@ func renderBorderButtonRow(labels []string, width int, active int) string {
 func renderBorderButtonRowStyled(labels []string, width int, active int, border lipgloss.Style, activeTitle lipgloss.Style, inactiveTitle lipgloss.Style) string {
 	segments := make([]string, 0, len(labels))
 	for idx, label := range labels {
-		segment := "|" + label + "|"
-		if idx == active {
-			segment = activeTitle.Render(segment)
-		} else {
-			segment = inactiveTitle.Render(segment)
-		}
-		segments = append(segments, segment)
+		segments = append(segments, renderFooterSegment(label, idx == active, activeTitle, inactiveTitle))
 	}
 	bodyWidth := maxInt(1, width-2)
 	line := "╰"

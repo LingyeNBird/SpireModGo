@@ -83,18 +83,21 @@ func TestModsActionIndexAtUsesRenderedLabelWidths(tt *testing.T) {
 	loadTestLocalizer(tt)
 	screen := modsScreen{tab: modsTabAvailable}
 	labels := screen.actionLabels()
-	if got := screen.actionIndexAt(lipgloss.Width(labels[0]) / 2); got != 0 {
+	firstWidth := lipgloss.Width(formatButtonLabel(labels[0]))
+	secondWidth := lipgloss.Width(formatButtonLabel(labels[1]))
+	thirdWidth := lipgloss.Width(formatButtonLabel(labels[2]))
+	if got := screen.actionIndexAt(firstWidth / 2); got != 0 {
 		tt.Fatalf("expected select-all hit to map to index 0, got %d", got)
 	}
-	cancelX := lipgloss.Width(labels[0]) + 2 + lipgloss.Width(labels[1])/2
+	cancelX := firstWidth + 1 + secondWidth/2
 	if got := screen.actionIndexAt(cancelX); got != 1 {
 		tt.Fatalf("expected cancel hit to map to index 1, got %d", got)
 	}
-	installX := lipgloss.Width(labels[0]) + 2 + lipgloss.Width(labels[1]) + 2 + lipgloss.Width(labels[2])/2
+	installX := firstWidth + 1 + secondWidth + 1 + thirdWidth/2
 	if got := screen.actionIndexAt(installX); got != 2 {
 		tt.Fatalf("expected install hit to map to index 2, got %d", got)
 	}
-	if got := screen.actionIndexAt(lipgloss.Width(labels[0])); got != -1 {
+	if got := screen.actionIndexAt(firstWidth); got != -1 {
 		tt.Fatalf("expected separator gap to be non-clickable, got %d", got)
 	}
 }
@@ -103,11 +106,18 @@ func TestModsTabIndexAtUsesRenderedTabWidths(tt *testing.T) {
 	loadTestLocalizer(tt)
 	screen := modsScreen{tab: modsTabAvailable}
 	labels := screen.tabLabels()
-	availableWidth := lipgloss.Width(">" + labels[0] + "<")
-	installedStart := availableWidth + 2
-	installedCenter := installedStart + lipgloss.Width(labels[1])/2
+	availableWidth := lipgloss.Width(formatButtonLabel(labels[0]))
+	installedStart := availableWidth + 1
+	installedCenter := installedStart + lipgloss.Width(formatButtonLabel(labels[1]))/2
 	if got := screen.tabIndexAt(installedCenter); got != 1 {
 		tt.Fatalf("expected installed-tab hit to map to index 1, got %d", got)
+	}
+}
+
+func TestRenderValueControlUsesSharedSelectorShape(tt *testing.T) {
+	got := renderValueControl("Steam ID", "123")
+	if got != "Steam ID  [ < 123 > ]" {
+		tt.Fatalf("expected selector to use shared button framing, got %q", got)
 	}
 }
 

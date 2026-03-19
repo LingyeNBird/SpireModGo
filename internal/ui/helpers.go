@@ -243,16 +243,7 @@ func joinFlatColumns(left, right string, leftWidth, rightWidth int) string {
 func renderList(items []string, cursor int, focused bool) string {
 	var lines []string
 	for idx, item := range items {
-		prefix := "  "
-		style := lipgloss.NewStyle()
-		if idx == cursor {
-			prefix = "> "
-			style = cursorStyle
-			if focused {
-				style = focusStyle
-			}
-		}
-		lines = append(lines, style.Render(prefix+item))
+		lines = append(lines, renderSelectableLine(item, idx == cursor, focused))
 	}
 	if len(lines) == 0 {
 		return mutedStyle.Render(t("(empty)"))
@@ -260,14 +251,81 @@ func renderList(items []string, cursor int, focused bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func renderActionLine(label string, active bool) string {
-	text := "[ " + label + " ]"
+func formatButtonLabel(label string) string {
+	return "[ " + label + " ]"
+}
+
+func formatSelectorLabel(value string) string {
+	return formatButtonLabel("< " + value + " >")
+}
+
+func renderInlineButton(label string, active, focused bool) string {
+	text := formatButtonLabel(label)
 	if active {
+		if focused {
+			return buttonFocusStyle.Render(text)
+		}
 		return buttonActiveStyle.Render(text)
 	}
 	return buttonStyle.Render(text)
 }
 
+func renderInlineButtonGroup(labels []string, active int, focused bool) string {
+	rendered := make([]string, 0, len(labels))
+	for idx, label := range labels {
+		rendered = append(rendered, renderInlineButton(label, idx == active, focused && idx == active))
+	}
+	return strings.Join(rendered, " ")
+}
+
+func inlineButtonIndexAt(labels []string, localX int) int {
+	offset := 0
+	for idx, label := range labels {
+		width := lipgloss.Width(formatButtonLabel(label))
+		if localX >= offset && localX < offset+width {
+			return idx
+		}
+		offset += width
+		if idx < len(labels)-1 {
+			offset++
+		}
+	}
+	return -1
+}
+
+func renderActionButtonList(labels []string, active int, focused bool) string {
+	lines := make([]string, 0, len(labels))
+	for idx, label := range labels {
+		lines = append(lines, renderInlineButton(label, idx == active, focused && idx == active))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderFooterSegment(label string, active bool, activeStyle, inactiveStyle lipgloss.Style) string {
+	text := "|" + label + "|"
+	if active {
+		return activeStyle.Render(text)
+	}
+	return inactiveStyle.Render(text)
+}
+
+func renderSelectableLine(text string, selected, focused bool) string {
+	prefix := "  "
+	style := lipgloss.NewStyle()
+	if selected {
+		prefix = "> "
+		style = cursorStyle
+		if focused {
+			style = focusStyle
+		}
+	}
+	return style.Render(prefix + text)
+}
+
+func renderActionLine(label string, active bool) string {
+	return renderInlineButton(label, active, false)
+}
+
 func renderValueControl(label, value string) string {
-	return label + "  < " + value + " >"
+	return label + "  " + formatSelectorLabel(value)
 }

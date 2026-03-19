@@ -194,12 +194,12 @@ func (s *settingsScreen) view(app *appModel, width, height int) string {
 	s.input.Placeholder = t("Enter SlayTheSpire2 directory")
 	s.input.SetHeight(settingsInputHeight)
 	s.input.SetWidth(layout.leftBody.width)
-	actionText := renderList(actions, s.actionCursor, app.focus == focusContent && !s.editing)
+	actionText := renderActionButtonList(actions, s.actionCursor, app.focus == focusContent && !s.editing)
 	leftBody := strings.Join([]string{
 		t("Game Dir"),
 		s.input.View(),
 		"",
-		renderActionLine(t("Edit Path"), s.editing),
+		renderInlineButton(t("Edit Path"), s.editing, app.focus == focusContent && s.editing),
 		actionText,
 		"",
 		mutedStyle.Render(t("Press e to edit the path input.")),

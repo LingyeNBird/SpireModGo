@@ -150,10 +150,11 @@ func (s *savesScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, 
 		case localY == 8:
 			s.backupSelected(app)
 		case localY == 10:
-			if localX < layout.rightBody.width/2 {
+			switch inlineButtonIndexAt([]string{t("Restore Backup"), t("Delete Backup")}, localX) {
+			case 0:
 				s.section = 1
 				s.restoreSelected(app)
-			} else {
+			case 1:
 				s.section = 1
 				s.deleteSelected(app)
 			}
@@ -230,9 +231,9 @@ func (s *savesScreen) renderSaveSlotTable(saveType manager.SaveType, slots []man
 	styles.Cell = lipgloss.NewStyle()
 	styles.Selected = lipgloss.NewStyle()
 	if selectedSlot > 0 {
-		styles.Selected = cursorStyle
+		styles.Selected = buttonActiveStyle
 		if focused {
-			styles.Selected = focusStyle
+			styles.Selected = buttonFocusStyle
 		}
 	}
 	tbl := table.New(
@@ -265,7 +266,7 @@ func (s *savesScreen) renderRightPanel(app *appModel) string {
 		renderActionLine(t("Copy Save"), false),
 		renderActionLine(t("Backup Save"), false),
 		"",
-		strings.Join([]string{renderActionLine(t("Restore Backup"), false), renderActionLine(t("Delete Backup"), false)}, " "),
+		renderInlineButtonGroup([]string{t("Restore Backup"), t("Delete Backup")}, -1, false),
 	}
 	filtered := s.selectedBackups()
 	for _, backupLine := range s.renderBackupLines(filtered, app.focus == focusContent && s.section == 1) {
@@ -442,19 +443,6 @@ func (s *savesScreen) backupCountForSlot(saveType manager.SaveType, slot int) in
 		}
 	}
 	return count
-}
-
-func renderSelectableLine(text string, selected, focused bool) string {
-	prefix := "  "
-	style := lipgloss.NewStyle()
-	if selected {
-		prefix = "> "
-		style = cursorStyle
-		if focused {
-			style = focusStyle
-		}
-	}
-	return style.Render(prefix + text)
 }
 
 func backupTimestampText(name string) string {

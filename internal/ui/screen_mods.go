@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"slaymodgo/internal/manager"
 )
@@ -309,30 +308,11 @@ func (s *modsScreen) actionLabels() []string {
 }
 
 func (s *modsScreen) actionIndexAt(localX int) int {
-	offset := 0
-	for idx, label := range s.actionLabels() {
-		width := lipgloss.Width(label)
-		if localX >= offset && localX < offset+width {
-			return idx
-		}
-		offset += width
-		if idx < len(s.actionLabels())-1 {
-			offset += 2
-		}
-	}
-	return -1
+	return inlineButtonIndexAt(s.actionLabels(), localX)
 }
 
 func (s *modsScreen) renderTabs() string {
-	segments := s.tabLabels()
-	available := segments[0]
-	installed := segments[1]
-	if s.tab == modsTabAvailable {
-		available = ">" + available + "<"
-	} else {
-		installed = ">" + installed + "<"
-	}
-	return available + "  " + installed
+	return renderInlineButtonGroup(s.tabLabels(), int(s.tab), false)
 }
 
 func (s *modsScreen) tabLabels() []string {
@@ -340,28 +320,11 @@ func (s *modsScreen) tabLabels() []string {
 }
 
 func (s *modsScreen) tabIndexAt(localX int) int {
-	segments := s.tabLabels()
-	if s.tab == modsTabAvailable {
-		segments[0] = ">" + segments[0] + "<"
-	} else {
-		segments[1] = ">" + segments[1] + "<"
-	}
-	offset := 0
-	for idx, segment := range segments {
-		width := lipgloss.Width(segment)
-		if localX >= offset && localX < offset+width {
-			return idx
-		}
-		offset += width
-		if idx < len(segments)-1 {
-			offset += 2
-		}
-	}
-	return -1
+	return inlineButtonIndexAt(s.tabLabels(), localX)
 }
 
 func (s *modsScreen) renderActions() string {
-	return strings.Join(s.actionLabels(), "  ")
+	return renderInlineButtonGroup(s.actionLabels(), -1, false)
 }
 
 func (s *modsScreen) help() string {

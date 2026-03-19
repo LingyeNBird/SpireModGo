@@ -71,15 +71,15 @@ func modalLayout(width, height int, modal modalState) modalGeometry {
 			}
 		}
 	}
-	primaryLabel := lipgloss.Width("[ " + primaryButtonLabel(modal) + " ]")
-	secondaryLabel := lipgloss.Width("[ " + secondaryButtonLabel(modal) + " ]")
-	cancelLabel := lipgloss.Width("[ " + t("Cancel") + " ]")
+	primaryLabel := lipgloss.Width(formatButtonLabel(primaryButtonLabel(modal)))
+	secondaryLabel := lipgloss.Width(formatButtonLabel(secondaryButtonLabel(modal)))
+	cancelLabel := lipgloss.Width(formatButtonLabel(t("Cancel")))
 	geom.primaryButton = rect{x: body.x, y: buttonY, width: primaryLabel, height: 1}
 	if modal.kind == modalKindCopyTarget {
 		geom.secondaryButton = rect{x: body.x + primaryLabel + 2, y: buttonY, width: secondaryLabel, height: 1}
 		geom.cancelButton = rect{x: geom.secondaryButton.x + secondaryLabel + 2, y: buttonY, width: cancelLabel, height: 1}
 	} else if modal.kind == modalKindConfirm {
-		geom.cancelButton = rect{x: body.x + primaryLabel + 2, y: buttonY, width: cancelLabel, height: 1}
+		geom.cancelButton = rect{x: body.x + primaryLabel + 1, y: buttonY, width: cancelLabel, height: 1}
 	} else {
 		geom.cancelButton = geom.primaryButton
 	}
@@ -169,7 +169,7 @@ func renderCopyTargetModal(width, height int, modal modalState) string {
 		content := copyModalBorderStyle.Render("│") + panelBodyStyle.Render(line) + copyModalBorderStyle.Render("│")
 		lines = append(lines, strings.Repeat(" ", layout.frame.x)+content+strings.Repeat(" ", maxInt(0, width-layout.frame.x-layout.frame.width)))
 	}
-	bottom := renderBorderButtonRowStyled([]string{t("Copy"), t("Backup and Copy"), t("Cancel")}, layout.frame.width, modal.actionCursor, copyModalBorderStyle, copyModalTitleStyle, copyModalMutedStyle)
+	bottom := renderBorderButtonRowStyled([]string{t("Copy"), t("Backup and Copy"), t("Cancel")}, layout.frame.width, modal.actionCursor, copyModalBorderStyle, buttonActiveStyle, buttonStyle)
 	if len(lines) < height {
 		lines = append(lines, strings.Repeat(" ", layout.frame.x)+bottom+strings.Repeat(" ", maxInt(0, width-layout.frame.x-layout.frame.width)))
 	}
@@ -215,15 +215,11 @@ func modalTextLines(modal modalState, maxTextLines int) []string {
 }
 
 func modalButtonLine(modal modalState) string {
-	primary := renderActionLine(primaryButtonLabel(modal), modal.actionCursor == 0)
 	if modal.kind == modalKindCopyTarget {
-		secondary := renderActionLine(secondaryButtonLabel(modal), modal.actionCursor == 1)
-		cancel := renderActionLine(t("Cancel"), modal.actionCursor == 2)
-		return strings.Join([]string{primary, secondary, cancel}, " ")
+		return renderInlineButtonGroup([]string{primaryButtonLabel(modal), secondaryButtonLabel(modal), t("Cancel")}, modal.actionCursor, false)
 	}
 	if modal.kind == modalKindConfirm {
-		cancel := renderActionLine(t("Cancel"), modal.actionCursor == 1)
-		return strings.Join([]string{primary, cancel}, " ")
+		return renderInlineButtonGroup([]string{primaryButtonLabel(modal), t("Cancel")}, modal.actionCursor, false)
 	}
-	return primary
+	return renderInlineButton(primaryButtonLabel(modal), modal.actionCursor == 0, false)
 }
