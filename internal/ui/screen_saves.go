@@ -120,6 +120,51 @@ func (s *savesScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (s *savesScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, height int) tea.Cmd {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return nil
+	}
+	leftWidth, _ := splitContentWidths(width, 30, 24)
+	layout := newSplitBodyLayout(width, height, leftWidth)
+	if layout.leftBody.contains(x, y) {
+		localX, localY := x-layout.leftBody.x, y-layout.leftBody.y
+		s.section = 0
+		switch {
+		case localY >= 0 && localY <= 6:
+			s.fieldCursor = localY
+			if s.fieldCursor == 6 {
+				s.adjustField(app, 1)
+				return nil
+			}
+			delta := 1
+			if localX < layout.leftBody.width/2 {
+				delta = -1
+			}
+			s.adjustField(app, delta)
+		case localY == 8:
+			s.copySave(app)
+		case localY == 9:
+			s.backupSource(app)
+		}
+		return nil
+	}
+	if layout.rightBody.contains(x, y) {
+		localY := y - layout.rightBody.y
+		s.section = 1
+		switch {
+		case localY == 0:
+			s.restoreSelected(app)
+		case localY >= 2:
+			idx := localY - 2
+			if idx >= 0 && idx < len(s.backups) {
+				s.backupCursor = idx
+				s.restoreSlot = s.backups[idx].Slot
+			}
+		}
+	}
+	return nil
+}
+
 func (s *savesScreen) adjustField(app *appModel, delta int) {
 	if len(s.steamIDs) == 0 {
 		return
@@ -258,19 +303,19 @@ func (s *savesScreen) restoreSelected(app *appModel) {
 
 func (s *savesScreen) view(app *appModel, width, height int) string {
 	if s.err != "" {
-		return renderFlatColumn(t("Status"), t("Save management error\n\n%s", s.err), width, height)
+		return t("Save management error\n\n%s", s.err)
 	}
 	if len(s.steamIDs) == 0 {
-		return renderFlatColumn(t("Status"), t("No Steam save profiles were found under:\n\n%s\n\nLaunch the game once to create the save folders, then refresh this screen.", app.manager.SaveRoot), width, height)
+		return t("No Steam save profiles were found under:\n\n%s\n\nLaunch the game once to create the save folders, then refresh this screen.", app.manager.SaveRoot)
 	}
 	fields := []string{
-		t("Steam ID: %s", app.state.SelectedSteamID()),
-		t("Source Type: %s", formatSaveTypeName(s.sourceType)),
-		t("Source Slot: %d", s.sourceSlot),
-		t("Target Type: %s", formatSaveTypeName(s.targetType)),
-		t("Target Slot: %d", s.targetSlot),
-		t("Restore Slot: %d", s.restoreSlot),
-		t("Create .before_copy: %t", s.createBeforeCopyBackup),
+		renderValueControl(t("Steam ID"), app.state.SelectedSteamID()),
+		renderValueControl(t("Source Type"), formatSaveTypeName(s.sourceType)),
+		renderValueControl(t("Source Slot"), fmt.Sprintf("%d", s.sourceSlot)),
+		renderValueControl(t("Target Type"), formatSaveTypeName(s.targetType)),
+		renderValueControl(t("Target Slot"), fmt.Sprintf("%d", s.targetSlot)),
+		renderValueControl(t("Restore Slot"), fmt.Sprintf("%d", s.restoreSlot)),
+		renderValueControl(t("Create .before_copy"), fmt.Sprintf("%t", s.createBeforeCopyBackup)),
 	}
 	fieldList := renderList(fields, s.fieldCursor, app.focus == focusContent && s.section == 0)
 
@@ -291,16 +336,14 @@ func (s *savesScreen) view(app *appModel, width, height int) string {
 		backupDetail = renderBackupDetail(s.backups[s.backupCursor])
 	}
 
-	leftWidth, rightWidth := splitContentWidths(width, 30, 24)
-	leftBody := strings.Join([]string{fieldList, "", slots.String()}, "\n")
-	rightBody := strings.Join([]string{t("Backup List"), "", backupList, "", t("Selected Backup"), "", backupDetail}, "\n")
-	left := renderFlatColumn(t("Copy and Restore"), leftBody, leftWidth, height)
-	right := renderFlatColumn(t("Backups"), rightBody, rightWidth, height)
-	return joinFlatColumns(left, right, leftWidth, rightWidth)
+	leftWidth, _ := splitContentWidths(width, 30, 24)
+	leftBody := strings.Join([]string{fieldList, "", renderActionLine(t("Copy Save"), false), renderActionLine(t("Backup Save"), false), "", slots.String()}, "\n")
+	rightBody := strings.Join([]string{renderActionLine(t("Restore Backup"), false), "", backupList, "", t("Selected Backup"), "", backupDetail}, "\n")
+	return renderSplitBody(t("Copy and Restore"), leftBody, t("Backups"), rightBody, width, height, leftWidth)
 }
 
 func (s *savesScreen) help() string {
-	return t("Saves: s switch section | up/down move | left/right change | c copy | b backup | enter/r restore")
+	return t("Saves: click fields to change | click backup rows and action buttons | left/right change | c copy | b backup | enter/r restore")
 }
 
 func rotateSlot(value, delta int) int {

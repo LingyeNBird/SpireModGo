@@ -69,9 +69,12 @@ func (s *settingsScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 		switch msg.String() {
 		case "enter":
 			s.editing = false
+			s.input.Blur()
 			return nil
 		case "esc":
+			s.input.SetValue(app.state.GameDir())
 			s.editing = false
+			s.input.Blur()
 			return nil
 		}
 		var cmd tea.Cmd
@@ -91,6 +94,30 @@ func (s *settingsScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 		s.editing = true
 		s.input.Focus()
 	case "enter":
+		s.runAction(app)
+	}
+	return nil
+}
+
+func (s *settingsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, height int) tea.Cmd {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return nil
+	}
+	leftWidth, _ := splitContentWidths(width, 28, 24)
+	layout := newSplitBodyLayout(width, height, leftWidth)
+	if !layout.leftBody.contains(x, y) {
+		return nil
+	}
+	localY := y - layout.leftBody.y
+	switch {
+	case localY == 1:
+		s.editing = true
+		s.input.Focus()
+	case localY == 3:
+		s.editing = true
+		s.input.Focus()
+	case localY >= 4 && localY < 9:
+		s.actionCursor = localY - 4
 		s.runAction(app)
 	}
 	return nil
@@ -153,24 +180,22 @@ func (s *settingsScreen) view(app *appModel, width, height int) string {
 		s.input.Prompt = "  "
 	}
 	actionText := renderList(actions, s.actionCursor, app.focus == focusContent && !s.editing)
-	leftWidth, rightWidth := splitContentWidths(width, 28, 24)
+	leftWidth, _ := splitContentWidths(width, 28, 24)
 	leftBody := strings.Join([]string{
 		t("Game Dir"),
 		s.input.View(),
 		"",
-		t("Actions"),
+		renderActionLine(t("Edit Path"), s.editing),
 		actionText,
 		"",
 		mutedStyle.Render(t("Press e to edit the path input.")),
 	}, "\n")
-	left := renderFlatColumn(t("Actions"), leftBody, leftWidth, height)
-	right := renderFlatColumn(t("Current Paths and State"), s.summary, rightWidth, height)
-	return joinFlatColumns(left, right, leftWidth, rightWidth)
+	return renderSplitBody(t("Actions"), leftBody, t("Current Paths and State"), s.summary, width, height, leftWidth)
 }
 
 func (s *settingsScreen) help() string {
 	if s.editing {
-		return t("Settings: type path | enter finish edit | esc cancel edit")
+		return t("Settings: click or type path | enter finish edit | esc cancel edit")
 	}
-	return t("Settings: up/down action | e edit path | enter run action")
+	return t("Settings: click path or actions | up/down action | e edit path | enter run action")
 }
