@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"slaymodgo/internal/manager"
+	"spiremodgo/internal/manager"
 )
 
 type savesScreen struct {
