@@ -3,8 +3,6 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 )
 
 const (
@@ -19,18 +17,12 @@ type localizer struct {
 
 var activeLocalizer = &localizer{current: localeZhCN, catalogs: map[string]map[string]string{}}
 
-func loadLocalizer(baseDir string) error {
-	langDir := filepath.Join(baseDir, "lang")
+func loadLocalizer(_ string) error {
 	activeLocalizer.catalogs = map[string]map[string]string{}
-	for _, locale := range []string{localeZhCN, localeEnUS} {
-		path := filepath.Join(langDir, locale+".json")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
+	for locale, raw := range embeddedLocaleCatalogs {
 		catalog := map[string]string{}
-		if err := json.Unmarshal(data, &catalog); err != nil {
-			return err
+		if err := json.Unmarshal([]byte(raw), &catalog); err != nil {
+			return fmt.Errorf("load locale %s: %w", locale, err)
 		}
 		activeLocalizer.catalogs[locale] = catalog
 	}
