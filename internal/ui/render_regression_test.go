@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 
 	"spiremodgo/internal/manager"
 )
@@ -17,6 +19,15 @@ func loadTestLocalizer(tt *testing.T) {
 	if err := loadLocalizer(filepath.Clean(filepath.Join("..", ".."))); err != nil {
 		tt.Fatalf("load localizer: %v", err)
 	}
+}
+
+func withANSIColorProfile(tt *testing.T) {
+	tt.Helper()
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	tt.Cleanup(func() {
+		lipgloss.SetColorProfile(previous)
+	})
 }
 
 func TestWrapBodyTextWrapsWithoutDroppingContent(tt *testing.T) {
@@ -180,6 +191,82 @@ func TestRenderModsTabUsesSidebarStyleInsteadOfButtonBrackets(tt *testing.T) {
 	}
 }
 
+func TestRenderMenuBodyStylesSelectedQuitAsDanger(tt *testing.T) {
+	loadTestLocalizer(tt)
+	withANSIColorProfile(tt)
+	items := []sidebarItem{{Label: t("Main Menu")}, {Label: t("Quit"), Danger: true}}
+	rendered, _ := renderMenuBody(items, 1, 30, 4, true)
+	if !strings.Contains(rendered, navDangerFocusStyle.Render("> "+t("Quit")+" <")) {
+		tt.Fatalf("expected selected quit item to use red focused nav style, got %q", rendered)
+	}
+	neutralRendered, _ := renderMenuBody(items, 0, 30, 4, true)
+	if strings.Contains(neutralRendered, navDangerFocusStyle.Render("> "+t("Main Menu")+" <")) {
+		tt.Fatalf("expected non-danger menu items to avoid danger nav style, got %q", neutralRendered)
+	}
+}
+
+func TestHandleNavKeyQuitSelectionKeepsCurrentScreenUntilActivation(tt *testing.T) {
+	m := &appModel{current: screenSettings, navIndex: 3, focus: focusNav}
+	if cmd := m.handleNavKey(tea.KeyMsg{Type: tea.KeyDown}); cmd != nil {
+		tt.Fatalf("expected moving onto quit to avoid immediate activation")
+	}
+	if m.navIndex != navQuitIndex {
+		tt.Fatalf("expected nav index to move onto quit, got %d", m.navIndex)
+	}
+	if m.current != screenSettings {
+		tt.Fatalf("expected current screen to stay on settings, got %q", m.current)
+	}
+	cmd := m.handleNavKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		tt.Fatalf("expected activating selected quit to return quit command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		tt.Fatalf("expected quit command to emit tea.QuitMsg")
+	}
+}
+
+func TestHandleMouseQuitRequiresSecondClick(tt *testing.T) {
+	loadTestLocalizer(tt)
+	m := &appModel{width: 120, height: 40, current: screenSettings, navIndex: 3}
+	m.layout = m.computeLayout()
+	_, items := m.renderSidebar(m.layout.menu.body.width, m.layout.menu.body.height)
+	m.layout.menuItems = m.absoluteMenuRects(items)
+	quitRect := m.layout.menuItems[navQuitIndex]
+	click := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: quitRect.x, Y: quitRect.y}
+	if cmd := m.handleMouse(click); cmd != nil {
+		tt.Fatalf("expected first quit click to select only")
+	}
+	if m.navIndex != navQuitIndex {
+		tt.Fatalf("expected first quit click to select quit, got %d", m.navIndex)
+	}
+	if m.current != screenSettings {
+		tt.Fatalf("expected first quit click to keep current screen, got %q", m.current)
+	}
+	if m.focus != focusNav {
+		tt.Fatalf("expected first quit click to keep nav focus, got %d", m.focus)
+	}
+	cmd := m.handleMouse(click)
+	if cmd == nil {
+		tt.Fatalf("expected second quit click to return quit command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		tt.Fatalf("expected second quit click to emit tea.QuitMsg")
+	}
+}
+
+func TestCompactSidebarStillRendersQuitAndHitbox(tt *testing.T) {
+	loadTestLocalizer(tt)
+	m := &appModel{width: 40, height: 12, current: screenHome, navIndex: 0, focus: focusNav}
+	m.layout = m.computeLayout()
+	rendered, items := m.renderSidebar(m.layout.menu.body.width, m.layout.menu.body.height)
+	if !strings.Contains(ansi.Strip(rendered), t("Quit")) {
+		tt.Fatalf("expected compact sidebar to still render quit, got %q", ansi.Strip(rendered))
+	}
+	if len(items) <= navQuitIndex {
+		tt.Fatalf("expected compact sidebar to expose quit hitbox, got %d items", len(items))
+	}
+}
+
 func TestRenderValueControlUsesSharedSelectorShape(tt *testing.T) {
 	got := renderValueControl("Steam ID", "123")
 	if got != "Steam ID  [ < 123 > ]" {
@@ -292,6 +379,41 @@ func TestRenderRepairHeaderWrapsWarningText(tt *testing.T) {
 	}
 }
 
+func TestSavesRenderRightPanelStylesDeleteBackupAsDanger(tt *testing.T) {
+	loadTestLocalizer(tt)
+	withANSIColorProfile(tt)
+	screen := savesScreen{
+		listCursor:     1,
+		lastSlotCursor: 1,
+		normalSlots:    []manager.SaveSlotInfo{{HasData: true}, {HasData: false}, {HasData: false}},
+		moddedSlots:    []manager.SaveSlotInfo{{HasData: false}, {HasData: false}, {HasData: false}},
+	}
+	view := screen.renderRightPanel(&appModel{})
+	if !strings.Contains(view, dangerButtonStyle.Render(formatButtonLabel(t("Delete Backup")))) {
+		tt.Fatalf("expected delete backup to render as danger button, got %q", view)
+	}
+	if !strings.Contains(view, buttonStyle.Render(formatButtonLabel(t("Restore Backup")))) {
+		tt.Fatalf("expected restore backup to keep standard button style, got %q", view)
+	}
+}
+
+func TestModsRenderActionsStylesInstalledUninstallAsDanger(tt *testing.T) {
+	loadTestLocalizer(tt)
+	withANSIColorProfile(tt)
+	screen := modsScreen{tab: modsTabInstalled}
+	view := screen.renderActions()
+	if !strings.Contains(view, dangerButtonStyle.Render(formatButtonLabel(t("Uninstall")))) {
+		tt.Fatalf("expected uninstall to render as danger button on installed tab, got %q", view)
+	}
+	if !strings.Contains(view, buttonStyle.Render(formatButtonLabel(t("Select All")))) {
+		tt.Fatalf("expected non-danger actions to keep standard style, got %q", view)
+	}
+	availableView := (&modsScreen{tab: modsTabAvailable}).renderActions()
+	if strings.Contains(availableView, dangerButtonStyle.Render(formatButtonLabel(t("Install")))) {
+		tt.Fatalf("expected install button to avoid danger style, got %q", availableView)
+	}
+}
+
 func TestComputeLayoutStacksHelpBelowMenu(tt *testing.T) {
 	m := &appModel{width: 120, height: 40}
 	layout := m.computeLayout()
@@ -371,6 +493,7 @@ func TestCurrentHelpOmitsHomeSection(tt *testing.T) {
 func TestNewTranslationKeysResolve(tt *testing.T) {
 	loadTestLocalizer(tt)
 	checks := map[string]string{
+		t("Quit"):                               "退出",
 		t("Installed [%d]", 0):                  "已安装[0]",
 		t("Type: %s", t("Vanilla")):             "类型：原版",
 		t("Slot: %d", 1):                        "槽位：1",
