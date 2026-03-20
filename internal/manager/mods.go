@@ -268,15 +268,6 @@ func (m *Manager) RepairMod(modDir string) (ModRepairResult, error) {
 			config[key] = value
 		}
 	}
-	config["id"] = layout.BaseName
-	config["name"] = layout.BaseName
-	config["author"] = layout.BaseName
-	config["pck_name"] = layout.BaseName
-	config["has_pck"] = layout.HasPck
-	config["has_dll"] = layout.HasDll
-	if _, ok := config["dependencies"]; !ok {
-		config["dependencies"] = []any{}
-	}
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return ModRepairResult{}, err
@@ -284,13 +275,7 @@ func (m *Manager) RepairMod(modDir string) (ModRepairResult, error) {
 	if err := os.WriteFile(layout.TargetJSONPath, data, 0o644); err != nil {
 		return ModRepairResult{}, err
 	}
-	removedLegacy := false
-	if layout.LegacyExists && !sameFilePath(layout.LegacyJSONPath, layout.TargetJSONPath) {
-		if err := os.Remove(layout.LegacyJSONPath); err == nil || os.IsNotExist(err) {
-			removedLegacy = true
-		}
-	}
-	return ModRepairResult{ConfigPath: layout.TargetJSONPath, RemovedLegacyManifest: removedLegacy}, nil
+	return ModRepairResult{ConfigPath: layout.TargetJSONPath, RemovedLegacyManifest: false}, nil
 }
 
 func (m *Manager) UninstallMods(gameDir string, names []string) ([]UninstallResult, error) {
@@ -443,27 +428,13 @@ func compareVersionStrings(left, right string) int {
 }
 
 func inspectModRepairNeed(modDir string, manifest *ModManifest) (bool, string) {
+	_ = manifest
 	layout := inspectModRepairLayout(modDir)
 	if layout.PckCount > 1 || layout.DllCount > 1 {
 		return false, ""
 	}
-	if layout.LegacyExists && !sameFilePath(layout.LegacyJSONPath, layout.TargetJSONPath) {
-		return true, "legacy_manifest"
-	}
 	if !layout.TargetExists {
 		return true, "missing_target_json"
-	}
-	if manifest == nil {
-		return false, ""
-	}
-	if stringsTrimSpace(manifest.ID) != layout.BaseName || stringsTrimSpace(manifest.Name) != layout.BaseName || stringsTrimSpace(manifest.Author) != layout.BaseName || stringsTrimSpace(manifest.PckName) != layout.BaseName {
-		return true, "metadata_mismatch"
-	}
-	if manifest.HasPck != layout.HasPck || manifest.HasDll != layout.HasDll {
-		return true, "asset_flag_mismatch"
-	}
-	if manifest.Dependencies == nil {
-		return true, "missing_dependencies"
 	}
 	return false, ""
 }

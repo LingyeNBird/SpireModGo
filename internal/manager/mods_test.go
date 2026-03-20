@@ -167,7 +167,98 @@ func TestListAvailableModsMarksLegacyManifestForRepair(t *testing.T) {
 	}
 }
 
-func TestRepairModCreatesTargetJsonAndRemovesLegacyManifest(t *testing.T) {
+func TestInspectModRepairNeedDoesNotFlagTargetJSONWithCustomMetadata(t *testing.T) {
+	t.Parallel()
+	modDir := filepath.Join(t.TempDir(), "CustomDamage")
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.pck"), []byte("pck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.dll"), []byte("dll"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.json"), []byte(`{"id":"custom-id","name":"Fancy Name","version":"1.0.0","author":"Alice","pck_name":"FancyInstall","has_pck":false,"has_dll":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest, err := readManifest(modDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needsRepair, hint := inspectModRepairNeed(modDir, manifest)
+	if needsRepair {
+		t.Fatalf("expected target json with custom metadata to skip repair, got hint %q", hint)
+	}
+}
+
+func TestInspectModRepairNeedDoesNotFlagTargetAndLegacyCoexistence(t *testing.T) {
+	t.Parallel()
+	modDir := filepath.Join(t.TempDir(), "LegacyAndTarget")
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.pck"), []byte("pck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.json"), []byte(`{"pck_name":"DamageMeter","version":"1.0.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "mod_manifest.json"), []byte(`{"pck_name":"LegacyDamage","version":"0.9.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest, err := readManifest(modDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needsRepair, hint := inspectModRepairNeed(modDir, manifest)
+	if needsRepair {
+		t.Fatalf("expected target+legacy coexistence to skip repair, got hint %q", hint)
+	}
+}
+
+func TestInspectModRepairNeedFlagsLegacyOnly(t *testing.T) {
+	t.Parallel()
+	modDir := filepath.Join(t.TempDir(), "LegacyOnly")
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.pck"), []byte("pck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "mod_manifest.json"), []byte(`{"pck_name":"DamageMeter","version":"1.0.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest, err := readManifest(modDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needsRepair, hint := inspectModRepairNeed(modDir, manifest)
+	if !needsRepair || hint != "missing_target_json" {
+		t.Fatalf("expected legacy-only manifest to require target json repair, got needsRepair=%v hint=%q", needsRepair, hint)
+	}
+}
+
+func TestInspectModRepairNeedFlagsMissingManifest(t *testing.T) {
+	t.Parallel()
+	modDir := filepath.Join(t.TempDir(), "MissingManifest")
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.pck"), []byte("pck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	needsRepair, hint := inspectModRepairNeed(modDir, nil)
+	if !needsRepair || hint != "missing_target_json" {
+		t.Fatalf("expected missing manifest to require target json repair, got needsRepair=%v hint=%q", needsRepair, hint)
+	}
+}
+
+func TestRepairModCreatesTargetJsonAndKeepsLegacyManifest(t *testing.T) {
 	t.Parallel()
 	baseDir := t.TempDir()
 	m, err := New(baseDir)
@@ -194,11 +285,11 @@ func TestRepairModCreatesTargetJsonAndRemovesLegacyManifest(t *testing.T) {
 	if filepath.Base(result.ConfigPath) != "DamageMeter.json" {
 		t.Fatalf("expected repaired config path to use pck basename, got %q", result.ConfigPath)
 	}
-	if !result.RemovedLegacyManifest {
-		t.Fatal("expected legacy manifest to be removed")
+	if result.RemovedLegacyManifest {
+		t.Fatal("expected repair to keep legacy manifest for script parity")
 	}
-	if fileExists(filepath.Join(modDir, "mod_manifest.json")) {
-		t.Fatal("expected mod_manifest.json to be removed")
+	if !fileExists(filepath.Join(modDir, "mod_manifest.json")) {
+		t.Fatal("expected mod_manifest.json to remain after repair")
 	}
 	data, err := os.ReadFile(filepath.Join(modDir, "DamageMeter.json"))
 	if err != nil {
@@ -213,6 +304,62 @@ func TestRepairModCreatesTargetJsonAndRemovesLegacyManifest(t *testing.T) {
 	}
 	if manifest["has_pck"] != true {
 		t.Fatalf("expected repaired config to set has_pck, got %v", manifest["has_pck"])
+	}
+}
+
+func TestRepairModPreservesExistingMetadataAndFillsMissingFields(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+	m, err := New(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+
+	modDir := filepath.Join(baseDir, "LegacyCustom")
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.pck"), []byte("pck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "DamageMeter.dll"), []byte("dll"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "mod_manifest.json"), []byte(`{"id":"custom-id","name":"Fancy Name","version":"1.2.3","author":"Alice","pck_name":"FancyInstall","has_pck":false,"has_dll":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := m.RepairMod(modDir)
+	if err != nil {
+		t.Fatalf("repair mod: %v", err)
+	}
+	if filepath.Base(result.ConfigPath) != "DamageMeter.json" {
+		t.Fatalf("expected repaired config path to use pck basename, got %q", result.ConfigPath)
+	}
+	data, err := os.ReadFile(result.ConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := map[string]any{}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest["id"] != "custom-id" || manifest["name"] != "Fancy Name" || manifest["author"] != "Alice" || manifest["pck_name"] != "FancyInstall" {
+		t.Fatalf("expected repair to preserve existing metadata, got %v", manifest)
+	}
+	if manifest["has_pck"] != false || manifest["has_dll"] != false {
+		t.Fatalf("expected repair to preserve existing asset flags, got has_pck=%v has_dll=%v", manifest["has_pck"], manifest["has_dll"])
+	}
+	if manifest["description"] != "这是通过脚本自动生成的临时配置文件，如果mod更新请使用mod作者提供的新文件" {
+		t.Fatalf("expected repair to fill missing description, got %v", manifest["description"])
+	}
+	if manifest["affects_gameplay"] != false {
+		t.Fatalf("expected repair to fill missing affects_gameplay, got %v", manifest["affects_gameplay"])
+	}
+	deps, ok := manifest["dependencies"].([]any)
+	if !ok || len(deps) != 0 {
+		t.Fatalf("expected repair to fill missing dependencies with empty array, got %T %v", manifest["dependencies"], manifest["dependencies"])
 	}
 }
 
