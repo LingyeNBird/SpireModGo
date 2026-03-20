@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -8,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"spiremodgo/internal/manager"
+	"spiremodgo/internal/ui/logging"
 )
 
 const (
@@ -39,7 +41,7 @@ type appModel struct {
 	focus    focusZone
 	modal    modalState
 	layout   shellLayout
-	logs     logModel
+	logs     logging.Model
 	home     homeScreen
 	mods     modsScreen
 	saves    savesScreen
@@ -78,7 +80,7 @@ func newAppModel(mgr *manager.Manager) *appModel {
 		state:   NewState(mgr),
 		current: screenHome,
 		focus:   focusNav,
-		logs:    newLogModel(),
+		logs:    logging.New(formatLogEntry),
 	}
 	m.settings.init()
 	m.bootstrap()
@@ -133,7 +135,6 @@ func (m *appModel) View() string {
 		return t("Loading...")
 	}
 	m.layout = m.computeLayout()
-	m.logs.Resize(m.layout.log.body.width, m.layout.log.body.height)
 
 	menuBody, menuItems := m.renderSidebar(m.layout.menu.body.width, m.layout.menu.body.height)
 	m.layout.menuItems = m.absoluteMenuRects(menuItems)
@@ -720,6 +721,21 @@ func (m *appModel) logError(format string, args ...any) {
 	m.logs.Add("error", format, args...)
 }
 
+func formatLogEntry(stamp, level, key string, args ...any) string {
+	label := level
+	switch level {
+	case "ok":
+		label = okStyle.Render(t("OK"))
+	case "warn":
+		label = warnStyle.Render(t("WARN"))
+	case "error":
+		label = errorStyle.Render(t("ERR"))
+	default:
+		label = mutedStyle.Render(t("INFO"))
+	}
+	return fmt.Sprintf("%s  [%s] %s", mutedStyle.Render(stamp), label, t(key, args...))
+}
+
 func screenName(screen string) string {
 	switch screen {
 	case screenMods:
@@ -738,7 +754,7 @@ func (m *appModel) refreshAllLocalizedState() {
 	m.mods.refresh(m)
 	m.saves.refresh(m)
 	m.settings.refresh(m)
-	m.logs.sync()
+	m.logs.Sync()
 }
 
 func (m *appModel) localizeError(err error) string {
