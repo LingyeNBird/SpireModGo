@@ -163,7 +163,8 @@ func (s *savesScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, width, 
 		case localY == 8:
 			s.backupSelected(app)
 		case localY == 10:
-			switch inlineButtonIndexAt([]string{t("Restore Backup"), t("Delete Backup")}, localX) {
+			buttons := s.backupActionButtons()
+			switch inlineButtonIndexAt(inlineButtonLabels(buttons), localX) {
 			case 0:
 				s.section = 1
 				s.restoreSelected(app)
@@ -346,13 +347,20 @@ func (s *savesScreen) renderRightPanel(app *appModel) string {
 		renderActionLine(t("Copy Save"), false),
 		renderActionLine(t("Backup Save"), false),
 		"",
-		renderInlineButtonGroup([]string{t("Restore Backup"), t("Delete Backup")}, -1, false),
+		renderInlineButtonGroupSpecs(s.backupActionButtons(), -1, false),
 	}
 	filtered := s.selectedBackups()
 	for _, backupLine := range s.renderBackupLines(filtered, app.focus == focusContent && s.section == 1) {
 		lines = append(lines, backupLine)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (s *savesScreen) backupActionButtons() []inlineButtonSpec {
+	return []inlineButtonSpec{
+		{Label: t("Restore Backup")},
+		{Label: t("Delete Backup"), Variant: inlineButtonVariantDanger},
+	}
 }
 
 func (s *savesScreen) renderBackupLines(backups []manager.BackupInfo, focused bool) []string {

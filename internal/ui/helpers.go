@@ -12,6 +12,18 @@ import (
 	"spiremodgo/internal/manager"
 )
 
+type inlineButtonVariant int
+
+const (
+	inlineButtonVariantDefault inlineButtonVariant = iota
+	inlineButtonVariantDanger
+)
+
+type inlineButtonSpec struct {
+	Label   string
+	Variant inlineButtonVariant
+}
+
 func formatTimestamp(value time.Time) string {
 	if value.IsZero() {
 		return "-"
@@ -316,23 +328,59 @@ func formatSelectorLabel(value string) string {
 	return formatButtonLabel("< " + value + " >")
 }
 
-func renderInlineButton(label string, active, focused bool) string {
+func renderInlineButtonWithVariant(label string, active, focused bool, variant inlineButtonVariant) string {
 	text := formatButtonLabel(label)
-	if active {
-		if focused {
-			return buttonFocusStyle.Render(text)
+	style := buttonStyle
+	switch variant {
+	case inlineButtonVariantDanger:
+		style = dangerButtonStyle
+		if active {
+			style = dangerButtonActiveStyle
+			if focused {
+				style = dangerButtonFocusStyle
+			}
 		}
-		return buttonActiveStyle.Render(text)
+	default:
+		if active {
+			style = buttonActiveStyle
+			if focused {
+				style = buttonFocusStyle
+			}
+		}
 	}
-	return buttonStyle.Render(text)
+	return style.Render(text)
+}
+
+func renderInlineButton(label string, active, focused bool) string {
+	return renderInlineButtonWithVariant(label, active, focused, inlineButtonVariantDefault)
 }
 
 func renderInlineButtonGroup(labels []string, active int, focused bool) string {
-	rendered := make([]string, 0, len(labels))
-	for idx, label := range labels {
-		rendered = append(rendered, renderInlineButton(label, idx == active, focused && idx == active))
+	return renderInlineButtonGroupSpecs(buildInlineButtonSpecs(labels), active, focused)
+}
+
+func renderInlineButtonGroupSpecs(buttons []inlineButtonSpec, active int, focused bool) string {
+	rendered := make([]string, 0, len(buttons))
+	for idx, button := range buttons {
+		rendered = append(rendered, renderInlineButtonWithVariant(button.Label, idx == active, focused && idx == active, button.Variant))
 	}
 	return strings.Join(rendered, " ")
+}
+
+func buildInlineButtonSpecs(labels []string) []inlineButtonSpec {
+	buttons := make([]inlineButtonSpec, 0, len(labels))
+	for _, label := range labels {
+		buttons = append(buttons, inlineButtonSpec{Label: label})
+	}
+	return buttons
+}
+
+func inlineButtonLabels(buttons []inlineButtonSpec) []string {
+	labels := make([]string, 0, len(buttons))
+	for _, button := range buttons {
+		labels = append(labels, button.Label)
+	}
+	return labels
 }
 
 func inlineButtonIndexAt(labels []string, localX int) int {

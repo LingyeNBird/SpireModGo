@@ -388,11 +388,15 @@ func (s *modsScreen) repairCurrent(app *appModel) {
 }
 
 func (s *modsScreen) primaryActionLabels() []string {
-	labels := []string{t("Select All"), t("Clear Selection")}
+	return inlineButtonLabels(s.primaryActionButtons())
+}
+
+func (s *modsScreen) primaryActionButtons() []inlineButtonSpec {
+	buttons := []inlineButtonSpec{{Label: t("Select All")}, {Label: t("Clear Selection")}}
 	if s.tab == modsTabAvailable {
-		return append(labels, t("Install"))
+		return append(buttons, inlineButtonSpec{Label: t("Install")})
 	}
-	return append(labels, t("Uninstall"))
+	return append(buttons, inlineButtonSpec{Label: t("Uninstall"), Variant: inlineButtonVariantDanger})
 }
 
 func (s *modsScreen) secondaryActionLabels() []string {
@@ -459,7 +463,7 @@ func renderModsList(items []string) string {
 
 func (s *modsScreen) renderActions() string {
 	return strings.Join([]string{
-		renderInlineButtonGroup(s.primaryActionLabels(), -1, false),
+		renderInlineButtonGroupSpecs(s.primaryActionButtons(), -1, false),
 		renderInlineButtonGroup(s.secondaryActionLabels(), -1, false),
 	}, "\n")
 }
