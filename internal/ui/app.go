@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"spiremodgo/internal/manager"
+	uidialog "spiremodgo/internal/ui/dialog"
 	"spiremodgo/internal/ui/logging"
 )
 
@@ -775,6 +777,13 @@ func (m *appModel) refreshAllLocalizedState() {
 func (m *appModel) localizeError(err error) string {
 	if err == nil {
 		return ""
+	}
+	var dialogErr *uidialog.FileDialogError
+	if errors.As(err, &dialogErr) {
+		if dialogErr.Detail != "" {
+			return t("Run file dialog failed: %v\n\n%s", dialogErr.Err, dialogErr.Detail)
+		}
+		return t("Run file dialog failed: %v", dialogErr.Err)
 	}
 	text := err.Error()
 	const steamPrefix = "no Steam save directories found in "

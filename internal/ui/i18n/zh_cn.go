@@ -89,6 +89,7 @@ const zhCNLocaleCatalogJSON = `{
   "There are no installed mods to remove.": "当前没有已安装模组可移除。",
   "Confirm Uninstall": "确认卸载",
   "Remove the selected installed mod folder(s)?\n\n%s": "要移除选中的模组目录吗？\n\n%s",
+  "Select one or more installed mods before uninstalling.": "请先选择一个或多个已安装模组再卸载。",
   "Uninstall failed": "卸载失败",
   "Failed to remove %s: %v": "移除 %s 失败：%v",
   "Removed installed mod folder %s": "已移除模组目录 %s",
@@ -254,6 +255,7 @@ const zhCNLocaleCatalogJSON = `{
   "Save List": "存档列表",
   "Save Info": "存档信息",
   "Backups: %d": "备份数：%d",
+  "Copy Options": "复制选项",
   "Copy Save": "复制存档",
   "Backup Save": "备份存档",
   "Restore Backup": "恢复备份",
@@ -307,11 +309,16 @@ const zhCNLocaleCatalogJSON = `{
   "Created manual backup for %s at %s": "已为 %s 创建手动备份：%s",
   "Confirm Restore": "确认恢复",
   "Restore backup %s to %s slot %d?": "要把备份 %s 恢复到 %s 槽位 %d 吗？",
+  "Select a backup before restoring.": "请先选择一个备份再恢复。",
   "Restore failed": "恢复失败",
   "Restored backup %s into %s (%d file(s))": "已将备份 %s 恢复到 %s（%d 个文件）",
   "Backed up the current target first: %s": "已先备份当前目标：%s",
   "Updated %d Steam cloud cache file(s) after restore": "恢复后已更新 %d 个 Steam 云缓存文件",
   "Delete backup %s?": "要删除备份 %s 吗？",
+  "Select a backup before deleting.": "请先选择一个备份再删除。",
   "Delete backup failed": "删除备份失败",
-  "Deleted backup %s": "已删除备份 %s"
+  "Deleted backup %s": "已删除备份 %s",
+  "Mods were installed, but no vanilla save slots were found to copy into modded mode yet.": "模组已安装，但还没有找到可复制到模组存档的原版存档槽位。",
+  "Run file dialog failed: %v": "运行文件选择对话框失败：%v",
+  "Run file dialog failed: %v\n\n%s": "运行文件选择对话框失败：%v\n\n%s"
 }`

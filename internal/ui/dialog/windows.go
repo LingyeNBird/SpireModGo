@@ -3,7 +3,6 @@
 package dialog
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,7 +39,7 @@ func runPowerShellFileDialog(script, startDir, startFile string) (string, error)
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 3 {
 			return "", ErrCancelled
 		}
-		return "", fmt.Errorf("run file dialog: %w (%s)", err, strings.TrimSpace(string(output)))
+		return "", &FileDialogError{Err: err, Detail: strings.TrimSpace(string(output))}
 	}
 	return strings.TrimSpace(string(output)), nil
 }

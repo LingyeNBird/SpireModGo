@@ -89,6 +89,7 @@ const enUSLocaleCatalogJSON = `{
   "There are no installed mods to remove.": "There are no installed mods to remove.",
   "Confirm Uninstall": "Confirm Uninstall",
   "Remove the selected installed mod folder(s)?\n\n%s": "Remove the selected installed mod folder(s)?\n\n%s",
+  "Select one or more installed mods before uninstalling.": "Select one or more installed mods before uninstalling.",
   "Uninstall failed": "Uninstall failed",
   "Failed to remove %s: %v": "Failed to remove %s: %v",
   "Removed installed mod folder %s": "Removed installed mod folder %s",
@@ -254,6 +255,7 @@ const enUSLocaleCatalogJSON = `{
   "Save List": "Save List",
   "Save Info": "Save Info",
   "Backups: %d": "Backups: %d",
+  "Copy Options": "Copy Options",
   "Copy Save": "Copy Save",
   "Backup Save": "Backup Save",
   "Restore Backup": "Restore Backup",
@@ -307,11 +309,16 @@ const enUSLocaleCatalogJSON = `{
   "Created manual backup for %s at %s": "Created manual backup for %s at %s",
   "Confirm Restore": "Confirm Restore",
   "Restore backup %s to %s slot %d?": "Restore backup %s to %s slot %d?",
+  "Select a backup before restoring.": "Select a backup before restoring.",
   "Restore failed": "Restore failed",
   "Restored backup %s into %s (%d file(s))": "Restored backup %s into %s (%d file(s))",
   "Backed up the current target first: %s": "Backed up the current target first: %s",
   "Updated %d Steam cloud cache file(s) after restore": "Updated %d Steam cloud cache file(s) after restore",
   "Delete backup %s?": "Delete backup %s?",
+  "Select a backup before deleting.": "Select a backup before deleting.",
   "Delete backup failed": "Delete backup failed",
-  "Deleted backup %s": "Deleted backup %s"
+  "Deleted backup %s": "Deleted backup %s",
+  "Mods were installed, but no vanilla save slots were found to copy into modded mode yet.": "Mods were installed, but no vanilla save slots were found to copy into modded mode yet.",
+  "Run file dialog failed: %v": "Run file dialog failed: %v",
+  "Run file dialog failed: %v\n\n%s": "Run file dialog failed: %v\n\n%s"
 }`

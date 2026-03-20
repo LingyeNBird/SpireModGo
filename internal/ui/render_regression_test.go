@@ -306,7 +306,7 @@ func TestHomeScreenOverviewShowsVersionAndUpdateGuide(tt *testing.T) {
 	if !strings.Contains(screen.overview, manager.AppVersion) {
 		tt.Fatalf("expected home overview to include app version, got %q", screen.overview)
 	}
-	if !strings.Contains(screen.guide, t("- Update checks use the latest GitHub release and open the download page manually.")) {
+	if !strings.Contains(screen.guide, t("- Update checks use the latest GitHub release and open a matching download, or fall back to the release page.")) {
 		tt.Fatalf("expected home guide to mention update checks, got %q", screen.guide)
 	}
 }
