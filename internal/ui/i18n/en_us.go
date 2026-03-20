@@ -320,5 +320,11 @@ const enUSLocaleCatalogJSON = `{
   "Deleted backup %s": "Deleted backup %s",
   "Mods were installed, but no vanilla save slots were found to copy into modded mode yet.": "Mods were installed, but no vanilla save slots were found to copy into modded mode yet.",
   "Run file dialog failed: %v": "Run file dialog failed: %v",
-  "Run file dialog failed: %v\n\n%s": "Run file dialog failed: %v\n\n%s"
+  "Run file dialog failed: %v\n\n%s": "Run file dialog failed: %v\n\n%s",
+  "Close": "Close",
+  "Confirm": "Confirm",
+  "Cancel": "Cancel",
+  "Copy": "Copy",
+  "Backup and Copy": "Backup and Copy",
+  "Choose a destination save slot": "Choose a destination save slot"
 }`

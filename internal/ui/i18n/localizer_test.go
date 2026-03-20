@@ -59,6 +59,18 @@ func TestLocalizerBackfilledKeysAndTemplates(testingT *testing.T) {
 	assertLocaleText(testingT, LocaleEnUS, "Run file dialog failed: %v", []any{"boom"}, "Run file dialog failed: boom")
 	assertLocaleText(testingT, LocaleZhCN, "Run file dialog failed: %v\n\n%s", []any{"boom", "details"}, "运行文件选择对话框失败：boom\n\ndetails")
 	assertLocaleText(testingT, LocaleEnUS, "Run file dialog failed: %v\n\n%s", []any{"boom", "details"}, "Run file dialog failed: boom\n\ndetails")
+	assertLocaleText(testingT, LocaleZhCN, "Close", nil, "关闭")
+	assertLocaleText(testingT, LocaleEnUS, "Close", nil, "Close")
+	assertLocaleText(testingT, LocaleZhCN, "Confirm", nil, "确认")
+	assertLocaleText(testingT, LocaleEnUS, "Confirm", nil, "Confirm")
+	assertLocaleText(testingT, LocaleZhCN, "Cancel", nil, "取消")
+	assertLocaleText(testingT, LocaleEnUS, "Cancel", nil, "Cancel")
+	assertLocaleText(testingT, LocaleZhCN, "Copy", nil, "复制")
+	assertLocaleText(testingT, LocaleEnUS, "Copy", nil, "Copy")
+	assertLocaleText(testingT, LocaleZhCN, "Backup and Copy", nil, "备份并复制")
+	assertLocaleText(testingT, LocaleEnUS, "Backup and Copy", nil, "Backup and Copy")
+	assertLocaleText(testingT, LocaleZhCN, "Choose a destination save slot", nil, "选择目标存档槽位")
+	assertLocaleText(testingT, LocaleEnUS, "Choose a destination save slot", nil, "Choose a destination save slot")
 }
 
 func mustDecodeCatalog(testingT *testing.T, raw string) map[string]string {

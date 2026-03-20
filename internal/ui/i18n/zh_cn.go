@@ -320,5 +320,11 @@ const zhCNLocaleCatalogJSON = `{
   "Deleted backup %s": "已删除备份 %s",
   "Mods were installed, but no vanilla save slots were found to copy into modded mode yet.": "模组已安装，但还没有找到可复制到模组存档的原版存档槽位。",
   "Run file dialog failed: %v": "运行文件选择对话框失败：%v",
-  "Run file dialog failed: %v\n\n%s": "运行文件选择对话框失败：%v\n\n%s"
+  "Run file dialog failed: %v\n\n%s": "运行文件选择对话框失败：%v\n\n%s",
+  "Close": "关闭",
+  "Confirm": "确认",
+  "Cancel": "取消",
+  "Copy": "复制",
+  "Backup and Copy": "备份并复制",
+  "Choose a destination save slot": "选择目标存档槽位"
 }`
