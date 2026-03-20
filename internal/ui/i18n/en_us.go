@@ -24,6 +24,7 @@ const enUSLocaleCatalogJSON = `{
   "Installed Mods": "Installed Mods",
   "Save Management": "Save Management",
   "Settings": "Settings",
+  "Quit": "Quit",
   "(not configured)": "(not configured)",
   "(none)": "(none)",
   "Language: %s": "Language: %s",

@@ -24,6 +24,7 @@ const zhCNLocaleCatalogJSON = `{
   "Installed Mods": "已安装模组",
   "Save Management": "存档管理",
   "Settings": "设置",
+  "Quit": "退出",
   "(not configured)": "（未配置）",
   "(none)": "（无）",
   "Language: %s": "语言：%s",
