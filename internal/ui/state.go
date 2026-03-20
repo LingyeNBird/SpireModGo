@@ -58,6 +58,14 @@ func (s *State) ClearConfig() error {
 	return s.manager.ClearConfig()
 }
 
+func (s *State) CheckForUpdates() (manager.UpdateCheckResult, error) {
+	return s.manager.CheckForUpdates()
+}
+
+func (s *State) OpenExternalURL(url string) error {
+	return s.manager.OpenURL(url)
+}
+
 func (s *State) ListAvailableMods() ([]manager.ModPackage, error) {
 	dir := s.manager.GetGameDir()
 	if dir == "" {

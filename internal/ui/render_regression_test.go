@@ -267,6 +267,50 @@ func TestCompactSidebarStillRendersQuitAndHitbox(tt *testing.T) {
 	}
 }
 
+func TestSettingsScreenRendersCheckUpdatesAndVersion(tt *testing.T) {
+	loadTestLocalizer(tt)
+	mgr, err := manager.New(tt.TempDir())
+	if err != nil {
+		tt.Fatal(err)
+	}
+	defer mgr.Close()
+	app := &appModel{manager: mgr, state: NewState(mgr)}
+	screen := &settingsScreen{}
+	screen.init()
+	screen.refresh(app)
+	view := screen.view(app, 120, 24)
+	if !strings.Contains(view, t("Check Updates")) {
+		tt.Fatalf("expected settings view to render check updates action, got %q", view)
+	}
+	if !strings.Contains(view, manager.AppVersion) {
+		tt.Fatalf("expected settings summary to show app version, got %q", view)
+	}
+	for range 10 {
+		screen.handleKey(app, tea.KeyMsg{Type: tea.KeyDown})
+	}
+	if screen.actionCursor != 5 {
+		tt.Fatalf("expected settings action cursor to reach sixth action, got %d", screen.actionCursor)
+	}
+}
+
+func TestHomeScreenOverviewShowsVersionAndUpdateGuide(tt *testing.T) {
+	loadTestLocalizer(tt)
+	mgr, err := manager.New(tt.TempDir())
+	if err != nil {
+		tt.Fatal(err)
+	}
+	defer mgr.Close()
+	app := &appModel{manager: mgr, state: NewState(mgr)}
+	screen := &homeScreen{}
+	screen.refresh(app)
+	if !strings.Contains(screen.overview, manager.AppVersion) {
+		tt.Fatalf("expected home overview to include app version, got %q", screen.overview)
+	}
+	if !strings.Contains(screen.guide, t("- Update checks use the latest GitHub release and open the download page manually.")) {
+		tt.Fatalf("expected home guide to mention update checks, got %q", screen.guide)
+	}
+}
+
 func TestRenderValueControlUsesSharedSelectorShape(tt *testing.T) {
 	got := renderValueControl("Steam ID", "123")
 	if got != "Steam ID  [ < 123 > ]" {

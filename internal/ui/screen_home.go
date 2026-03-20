@@ -2,6 +2,8 @@ package ui
 
 import (
 	"strings"
+
+	"spiremodgo/internal/manager"
 )
 
 type homeScreen struct {
@@ -29,6 +31,7 @@ func (s *homeScreen) refresh(app *appModel) {
 	}
 
 	var summaryText strings.Builder
+	summaryText.WriteString(t("App Version: %s\n", manager.AppVersion))
 	if app.state.GameDir() == "" {
 		summaryText.WriteString(t("Game directory: (not configured)\n"))
 	} else {
@@ -60,11 +63,11 @@ func (s *homeScreen) refresh(app *appModel) {
 		t("- Mod Management combines install, uninstall, and detail inspection."),
 		t("- Save Management shows vanilla and modded slots together."),
 		t("- Copy saves now picks the destination slot in a dedicated popup."),
-		t("- Settings still manages game-path detection and .bak cleanup."),
+		t("- Settings still manages game-path detection, .bak cleanup, and update checks."),
 		"",
 		t("- Destructive actions always ask for confirmation first."),
 		t("- Operation results stay in the bottom status/log pane."),
-		t("- Online update and self-update features are intentionally omitted."),
+		t("- Update checks use the latest GitHub release and open a matching download, or fall back to the release page."),
 	}, "\n")
 }
 

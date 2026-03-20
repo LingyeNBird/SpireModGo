@@ -6,6 +6,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"spiremodgo/internal/manager"
 )
 
 const settingsInputHeight = 3
@@ -46,6 +48,7 @@ func (s *settingsScreen) refresh(app *appModel) {
 	lines := []string{
 		t("Current Paths"),
 		"",
+		t("App Version: %s", manager.AppVersion),
 		t("Config file: %s", app.manager.ConfigPath),
 		t("Bundled Mods: %s", app.manager.DisplayAvailableModsRoot()),
 		t("Save root: %s", app.manager.SaveRoot),
@@ -92,7 +95,7 @@ func (s *settingsScreen) handleKey(app *appModel, msg tea.KeyMsg) tea.Cmd {
 			s.actionCursor--
 		}
 	case "down", "j":
-		if s.actionCursor < 4 {
+		if s.actionCursor < 5 {
 			s.actionCursor++
 		}
 	case "e":
@@ -125,7 +128,7 @@ func (s *settingsScreen) handleMouse(app *appModel, msg tea.MouseMsg, x, y, widt
 	case localY == editActionY:
 		s.editing = true
 		s.input.Focus()
-	case localY >= actionStartY && localY < actionStartY+5:
+	case localY >= actionStartY && localY < actionStartY+6:
 		s.actionCursor = localY - actionStartY
 		s.runAction(app)
 	}
@@ -177,11 +180,38 @@ func (s *settingsScreen) runAction(app *appModel) {
 	case 4:
 		s.refresh(app)
 		app.logInfo("Refreshed settings summary")
+	case 5:
+		result, err := app.state.CheckForUpdates()
+		if err != nil {
+			app.showError("Check updates failed", err)
+			return
+		}
+		if !result.HasUpdate {
+			app.showInfo("Check Updates", t("Already up to date: %s", manager.AppVersion))
+			return
+		}
+		targetURL := result.AssetURL
+		messageKey := "Update available: %s\n\nClick confirm to start the download."
+		if targetURL == "" {
+			targetURL = result.ReleaseURL
+			messageKey = "Update available: %s\n\nClick confirm to open the release page."
+		}
+		app.showConfirm("Check Updates", t(messageKey, result.LatestVersion), func(model *appModel) {
+			if err := model.state.OpenExternalURL(targetURL); err != nil {
+				model.showError("Open download page failed", err)
+				return
+			}
+			if result.AssetURL != "" {
+				model.logInfo("Opened update download: %s", targetURL)
+				return
+			}
+			model.logInfo("Opened release page: %s", targetURL)
+		})
 	}
 }
 
 func (s *settingsScreen) view(app *appModel, width, height int) string {
-	actions := []string{t("Auto Detect"), t("Save Path"), t("Clear Config"), t("Cleanup .bak"), t("Refresh")}
+	actions := []string{t("Auto Detect"), t("Save Path"), t("Clear Config"), t("Cleanup .bak"), t("Refresh"), t("Check Updates")}
 	leftWidth := maxInt(1, (width-3)/2)
 	layout := newSplitBodyLayout(width, height, leftWidth)
 	if s.editing {
