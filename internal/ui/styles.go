@@ -1,41 +1,41 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import uitheme "spiremodgo/internal/ui/theme"
 
 var (
-	titleStyle             = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("24"))
-	headerStyle            = lipgloss.NewStyle().Padding(0, 1)
-	footerStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-	sidebarStyle           = lipgloss.NewStyle()
-	workspaceStyle         = lipgloss.NewStyle()
-	sectionTitleStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
-	sectionDividerStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	sectionBodyStyle       = lipgloss.NewStyle()
-	panelBodyStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	titleRowStyle          = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("117"))
-	borderStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	copyModalBorderStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
-	copyModalTitleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("208"))
-	copyModalMutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("215"))
-	helpScopeStyle         = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
-	helpActionStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("221"))
-	helpTextStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	metaLabelStyle         = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("245"))
-	accentStyle            = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("117"))
-	mutedStyle             = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	okStyle                = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
-	warnStyle              = lipgloss.NewStyle().Foreground(lipgloss.Color("221"))
-	errorStyle             = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
-	oldFormatBadgeStyle    = errorStyle
-	saveSelectorArrowStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
-	navItemStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	navActiveStyle         = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230"))
-	navFocusStyle          = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("31"))
-	modalBoxStyle          = lipgloss.NewStyle().Border(lipgloss.DoubleBorder()).BorderForeground(lipgloss.Color("81")).Padding(1, 2).Background(lipgloss.Color("236")).Foreground(lipgloss.Color("230"))
-	buttonStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
-	buttonActiveStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("24"))
-	buttonFocusStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).Background(lipgloss.Color("31"))
-	cursorStyle            = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("117"))
-	selectedStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
-	focusStyle             = lipgloss.NewStyle().Foreground(lipgloss.Color("221"))
+	titleStyle             = uitheme.TitleStyle
+	headerStyle            = uitheme.HeaderStyle
+	footerStyle            = uitheme.FooterStyle
+	sidebarStyle           = uitheme.SidebarStyle
+	workspaceStyle         = uitheme.WorkspaceStyle
+	sectionTitleStyle      = uitheme.SectionTitleStyle
+	sectionDividerStyle    = uitheme.SectionDividerStyle
+	sectionBodyStyle       = uitheme.SectionBodyStyle
+	panelBodyStyle         = uitheme.PanelBodyStyle
+	titleRowStyle          = uitheme.TitleRowStyle
+	borderStyle            = uitheme.BorderStyle
+	copyModalBorderStyle   = uitheme.CopyModalBorderStyle
+	copyModalTitleStyle    = uitheme.CopyModalTitleStyle
+	copyModalMutedStyle    = uitheme.CopyModalMutedStyle
+	helpScopeStyle         = uitheme.HelpScopeStyle
+	helpActionStyle        = uitheme.HelpActionStyle
+	helpTextStyle          = uitheme.HelpTextStyle
+	metaLabelStyle         = uitheme.MetaLabelStyle
+	accentStyle            = uitheme.AccentStyle
+	mutedStyle             = uitheme.MutedStyle
+	okStyle                = uitheme.OKStyle
+	warnStyle              = uitheme.WarnStyle
+	errorStyle             = uitheme.ErrorStyle
+	oldFormatBadgeStyle    = uitheme.OldFormatBadgeStyle
+	saveSelectorArrowStyle = uitheme.SaveSelectorArrowStyle
+	navItemStyle           = uitheme.NavItemStyle
+	navActiveStyle         = uitheme.NavActiveStyle
+	navFocusStyle          = uitheme.NavFocusStyle
+	modalBoxStyle          = uitheme.ModalBoxStyle
+	buttonStyle            = uitheme.ButtonStyle
+	buttonActiveStyle      = uitheme.ButtonActiveStyle
+	buttonFocusStyle       = uitheme.ButtonFocusStyle
+	cursorStyle            = uitheme.CursorStyle
+	selectedStyle          = uitheme.SelectedStyle
+	focusStyle             = uitheme.FocusStyle
 )
