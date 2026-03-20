@@ -17,6 +17,7 @@ const (
 	screenMods     = "mods"
 	screenSaves    = "saves"
 	screenSettings = "settings"
+	navQuitIndex   = 4
 )
 
 type focusZone int
@@ -119,8 +120,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if m.focus == focusNav {
-			m.handleNavKey(msg)
-			return m, nil
+			return m, m.handleNavKey(msg)
 		}
 		if m.focus == focusLog {
 			return m, m.handleLogKey(msg)
@@ -260,20 +260,24 @@ func overlayVisibleSpan(line string, width int) (int, int, bool) {
 	return start, end, true
 }
 
-func (m *appModel) handleNavKey(msg tea.KeyMsg) {
+func (m *appModel) handleNavKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
 	case "up", "k":
 		if m.navIndex > 0 {
 			m.navIndex--
 		}
 	case "down", "j":
-		if m.navIndex < 3 {
+		if m.navIndex < navQuitIndex {
 			m.navIndex++
 		}
 	case "enter", "right", "l":
+		if m.navIndex == navQuitIndex {
+			return tea.Quit
+		}
 		m.switchScreen(screenByNavIndex(m.navIndex))
 		m.focus = focusContent
 	}
+	return nil
 }
 
 func (m *appModel) handleLogKey(msg tea.KeyMsg) tea.Cmd {
@@ -313,13 +317,17 @@ func (m *appModel) refreshCurrentScreen() {
 }
 
 func (m *appModel) renderSidebar(width, height int) (string, []rect) {
-	items := []string{
-		t("Main Menu"),
-		t("Mod Management"),
-		t("Save Management"),
-		t("Settings"),
+	return renderMenuBody(m.sidebarItems(), m.navIndex, width, height, m.focus == focusNav)
+}
+
+func (m *appModel) sidebarItems() []sidebarItem {
+	return []sidebarItem{
+		{Label: t("Main Menu")},
+		{Label: t("Mod Management")},
+		{Label: t("Save Management")},
+		{Label: t("Settings")},
+		{Label: t("Quit"), Danger: true},
 	}
-	return renderMenuBody(items, m.navIndex, width, height, m.focus == focusNav)
 }
 
 func (m *appModel) renderCurrentScreen(width, height int) string {
@@ -493,7 +501,7 @@ func (m *appModel) computeLayout() shellLayout {
 		menuWidth = clampInt(width/4, 16, 22)
 	}
 	rightWidth := maxInt(20, width-menuWidth)
-	menuHeight := maxInt(6, (height+1)/2)
+	menuHeight := maxInt(7, (height+1)/2)
 	helpHeight := maxInt(3, height-menuHeight)
 	menuHeight = height - helpHeight
 	logHeight := clampInt(height/4, 4, 8)
@@ -659,6 +667,13 @@ func (m *appModel) handleMouse(msg tea.MouseMsg) tea.Cmd {
 			m.focus = focusNav
 			for idx, item := range m.layout.menuItems {
 				if item.contains(msg.X, msg.Y) {
+					if idx == navQuitIndex {
+						if m.navIndex == navQuitIndex {
+							return tea.Quit
+						}
+						m.navIndex = navQuitIndex
+						break
+					}
 					m.navIndex = idx
 					m.switchScreen(screenByNavIndex(idx))
 					m.focus = focusContent

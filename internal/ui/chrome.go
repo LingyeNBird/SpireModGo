@@ -55,6 +55,11 @@ type splitBodyLayout struct {
 	rightBody   rect
 }
 
+type sidebarItem struct {
+	Label  string
+	Danger bool
+}
+
 func newSplitBodyLayout(width, height, leftWidth int) splitBodyLayout {
 	if width < 5 {
 		width = 5
@@ -140,7 +145,7 @@ func renderBorderButtonRowStyled(labels []string, width int, active int, border 
 	return border.Render(line)
 }
 
-func renderMenuBody(items []string, cursor, width, height int, focused bool) (string, []rect) {
+func renderMenuBody(items []sidebarItem, cursor, width, height int, focused bool) (string, []rect) {
 	width = maxInt(1, width)
 	height = maxInt(1, height)
 	lines := make([]string, 0, height)
@@ -153,13 +158,19 @@ func renderMenuBody(items []string, cursor, width, height int, focused bool) (st
 		lines = append(lines, padVisual("", width))
 	}
 	for idx, item := range items {
-		text := "  " + item + "  "
+		text := "  " + item.Label + "  "
 		style := navItemStyle
 		if idx == cursor {
-			text = "> " + item + " <"
+			text = "> " + item.Label + " <"
 			style = navActiveStyle
+			if item.Danger {
+				style = navDangerActiveStyle
+			}
 			if focused {
 				style = navFocusStyle
+				if item.Danger {
+					style = navDangerFocusStyle
+				}
 			}
 		}
 		rowY := len(lines)
