@@ -13,10 +13,14 @@ on:
         type: string
 
 jobs:
-  release-windows:
+  build-windows:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goarch: [386, amd64, arm64]
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout
@@ -33,12 +37,36 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           $env:CGO_ENABLED = "0"
           $env:GOOS = "windows"
-          $env:GOARCH = "amd64"
-          go build -trimpath -ldflags "-s -w" -o "dist/SpireModGo.exe" .
+          $env:GOARCH = "${{ matrix.goarch }}"
+          go build -trimpath -ldflags "-s -w" -o "dist/SpireModGo_windows_${{ matrix.goarch }}.exe" .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.goarch }}
+          path: dist/SpireModGo_windows_${{ matrix.goarch }}.exe
+
+  release-windows:
+    runs-on: windows-latest
+    needs: build-windows
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: windows-*
+          merge-multiple: true
 
       - name: Create draft release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ inputs.tag }}" "dist/SpireModGo.exe" --draft --title "${{ inputs.release_title }}" --target "${{ github.sha }}" --notes ""
+          $assets = Get-ChildItem -Path dist -Filter "SpireModGo_windows_*.exe" | ForEach-Object { $_.FullName }
+          & gh release create "${{ inputs.tag }}" $assets --draft --title "${{ inputs.release_title }}" --target "${{ github.sha }}" --notes ""
