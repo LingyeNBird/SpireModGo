@@ -6,7 +6,29 @@ const (
 	sts2AppID   = "2868840"
 	sts2DirName = "Slay the Spire 2"
 	sts2ExeName = "SlayTheSpire2.exe"
+	AppVersion  = "v1.0.0"
 )
+
+type ReleaseAsset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
+type ReleaseInfo struct {
+	TagName string         `json:"tag_name"`
+	HTMLURL string         `json:"html_url"`
+	Name    string         `json:"name"`
+	Assets  []ReleaseAsset `json:"assets"`
+}
+
+type UpdateCheckResult struct {
+	CurrentVersion string
+	LatestVersion  string
+	ReleaseURL     string
+	AssetName      string
+	AssetURL       string
+	HasUpdate      bool
+}
 
 type SaveType string
 
