@@ -11,10 +11,31 @@ func (m *Manager) LoadConfig() error {
 	data, err := os.ReadFile(m.ConfigPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			m.Config = Config{}
-			return nil
+			legacyPath := m.legacyConfigPath()
+			if legacyPath != "" {
+				legacyData, legacyErr := os.ReadFile(legacyPath)
+				if legacyErr == nil {
+					data = legacyData
+					err = nil
+					if saveErr := os.MkdirAll(filepath.Dir(m.ConfigPath), 0o755); saveErr != nil {
+						return saveErr
+					}
+					if saveErr := os.WriteFile(m.ConfigPath, legacyData, 0o644); saveErr != nil {
+						return saveErr
+					}
+					m.logf("migrated legacy config from %s to %s", legacyPath, m.ConfigPath)
+				} else if !errors.Is(legacyErr, os.ErrNotExist) {
+					return legacyErr
+				}
+			}
+			if len(data) == 0 {
+				m.Config = Config{}
+				return nil
+			}
 		}
-		return err
+		if err != nil {
+			return err
+		}
 	}
 	data = stripUTF8BOM(data)
 	var cfg Config

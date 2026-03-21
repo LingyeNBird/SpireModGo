@@ -106,9 +106,14 @@ dist\SpireModGo.exe
 ├─ internal/ui/                    # TUI 页面与交互
 ├─ Mods/                           # 随仓库分发的本地模组源目录
 ├─ dist/                           # 构建输出目录
-├─ logs/                           # 运行日志目录
-├─ modmanager.json                 # 游戏目录配置文件
 └─ main.go                         # 程序入口
+```
+
+运行时生成的配置和日志会写入用户目录：
+
+```text
+%APPDATA%\SpireModGo\modmanager.json
+%APPDATA%\SpireModGo\logs
 ```
 
 除了仓库内的 `Mods/` 目录，程序还会读取用户目录下的本地模组源：

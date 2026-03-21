@@ -33,13 +33,14 @@ func New(baseDir string) (*Manager, error) {
 	}
 
 	baseDir = filepath.Clean(baseDir)
+	userDataRoot := spireModGoUserDataRoot(baseDir, resolveUserDataParentDir())
 	m := &Manager{
 		BaseDir:        baseDir,
-		ConfigPath:     filepath.Join(baseDir, "modmanager.json"),
+		ConfigPath:     filepath.Join(userDataRoot, "modmanager.json"),
 		ModsSource:     filepath.Join(baseDir, "Mods"),
-		UserModsSource: filepath.Join(os.Getenv("APPDATA"), "SpireModGo", "mods"),
+		UserModsSource: filepath.Join(userDataRoot, "mods"),
 		SaveRoot:       filepath.Join(os.Getenv("APPDATA"), "SlayTheSpire2", "steam"),
-		LogDir:         filepath.Join(baseDir, "logs"),
+		LogDir:         filepath.Join(userDataRoot, "logs"),
 		Config:         Config{},
 	}
 	if err := m.initLogger(); err != nil {
@@ -73,12 +74,44 @@ func looksLikeAppBase(dir string) bool {
 	if dir == "" {
 		return false
 	}
-	for _, candidate := range []string{"Mods", "modmanager.json"} {
+	for _, candidate := range []string{"Mods"} {
 		if _, err := os.Stat(filepath.Join(dir, candidate)); err == nil {
 			return true
 		}
 	}
 	return false
+}
+
+func resolveUserDataParentDir() string {
+	if dir := stringsTrimSpace(os.Getenv("APPDATA")); dir != "" {
+		return dir
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return stringsTrimSpace(dir)
+}
+
+func spireModGoUserDataRoot(baseDir, userDataParent string) string {
+	if userDataParent != "" {
+		return filepath.Join(userDataParent, "SpireModGo")
+	}
+	if baseDir == "" {
+		return "SpireModGo"
+	}
+	return filepath.Join(baseDir, "SpireModGo")
+}
+
+func (m *Manager) legacyConfigPath() string {
+	if m.BaseDir == "" {
+		return ""
+	}
+	legacyPath := filepath.Join(m.BaseDir, "modmanager.json")
+	if filepath.Clean(legacyPath) == filepath.Clean(m.ConfigPath) {
+		return ""
+	}
+	return legacyPath
 }
 
 func (m *Manager) Close() error {
@@ -97,7 +130,7 @@ func (m *Manager) initLogger() error {
 	if err := m.cleanupOldLogs(); err != nil {
 		return err
 	}
-	logPath := filepath.Join(m.LogDir, fmt.Sprintf("modmanager_%s.log", time.Now().Format("20060102_150405")))
+	logPath := filepath.Join(m.LogDir, fmt.Sprintf("modmanager_%s_%d.log", time.Now().Format("20060102_150405.000000000"), os.Getpid()))
 	file, err := os.Create(logPath)
 	if err != nil {
 		return err

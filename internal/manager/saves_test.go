@@ -125,8 +125,11 @@ func TestRestoreBackupCopiesIntoTargetSlot(t *testing.T) {
 func TestLoadConfigHandlesUTF8BOM(t *testing.T) {
 	t.Parallel()
 	baseDir := t.TempDir()
-	configPath := filepath.Join(baseDir, "modmanager.json")
+	configPath := filepath.Join(baseDir, "SpireModGo", "modmanager.json")
 	content := append([]byte{0xEF, 0xBB, 0xBF}, []byte(`{"GameDir":"C:\\Game"}`)...)
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(configPath, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +138,10 @@ func TestLoadConfigHandlesUTF8BOM(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer m.Close()
+	m.ConfigPath = configPath
+	if err := m.LoadConfig(); err != nil {
+		t.Fatal(err)
+	}
 	if got := m.GetGameDir(); got != "" {
 		t.Fatalf("expected invalid BOM config path to be ignored by GetGameDir validation, got %q", got)
 	}
