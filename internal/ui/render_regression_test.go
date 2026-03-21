@@ -278,12 +278,21 @@ func TestSettingsScreenRendersCheckUpdatesAndVersion(tt *testing.T) {
 	screen := &settingsScreen{}
 	screen.init()
 	screen.refresh(app)
-	view := screen.view(app, 120, 24)
+	view := screen.view(app, 220, 24)
 	if !strings.Contains(view, t("Check Updates")) {
 		tt.Fatalf("expected settings view to render check updates action, got %q", view)
 	}
+	if !strings.Contains(view, "模组暂存目录：") {
+		tt.Fatalf("expected settings summary to render zh bundled-mods label, got %q", view)
+	}
+	if !strings.Contains(view, "Steam 存档目录：") {
+		tt.Fatalf("expected settings summary to render zh save-root label, got %q", view)
+	}
 	if !strings.Contains(view, manager.AppVersion) {
 		tt.Fatalf("expected settings summary to show app version, got %q", view)
+	}
+	if !strings.Contains(view, app.manager.LogDir) {
+		tt.Fatalf("expected settings summary to show manager log directory %q, got %q", app.manager.LogDir, view)
 	}
 	for range 10 {
 		screen.handleKey(app, tea.KeyMsg{Type: tea.KeyDown})

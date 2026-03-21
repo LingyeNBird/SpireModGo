@@ -50,6 +50,7 @@ func (s *settingsScreen) refresh(app *appModel) {
 		"",
 		t("App Version: %s", manager.AppVersion),
 		t("Config file: %s", app.manager.ConfigPath),
+		t("Log dir: %s", app.manager.LogDir),
 		t("Bundled Mods: %s", app.manager.DisplayAvailableModsRoot()),
 		t("Save root: %s", app.manager.SaveRoot),
 	}

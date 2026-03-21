@@ -101,6 +101,7 @@ const enUSLocaleCatalogJSON = `{
   "Enter SlayTheSpire2 directory": "Enter SlayTheSpire2 directory",
   "Current Paths": "Current Paths",
   "Config file: %s": "Config file: %s",
+  "Log dir: %s": "Log dir: %s",
   "App Version: %s": "App Version: %s",
   "Bundled Mods: %s": "Bundled Mods: %s",
   "Game dir: %s": "Game dir: %s",
